@@ -7,7 +7,7 @@
 #' Input compatibility:
 #' - Uses `post_prob$across$reg` created from the Legendre basis (`gradient_basis`)
 #'   in `prob_sup_bglr`, where predictions across the adaptive gradient are computed as
-#'   #$# \hat{y}_{g}(l) = \sum_{d=0}^{D} \beta_{g,d}\,\mathrm{deg}_d(l) #$#,
+#'   \eqn{\hat{y}_{g}(l) = \sum_{d=0}^{D} \beta_{g,d}\,\mathrm{deg}_d(l)},
 #'   with `deg0 = 1` and `deg1..degD` being orthonormalized Legendre basis columns.
 #'
 #' @param post_prob An object produced by `prob_sup_bglr()`. It must contain
@@ -98,7 +98,7 @@ plot_fw <- function(post_prob,
 #' for genotype intercepts, highlighting Top-N genotypes and checks.
 #'
 #' Legendre compatibility:
-#' - Intercepts are genotype-level #$# \alpha_g #$# means; slope terms (Legendre coefficients)
+#' - Intercepts are genotype-level \eqn{\alpha_g} means; slope terms (Legendre coefficients)
 #'   do not enter here. Top-N is ranked by the mean intercept.
 #'
 #' @param post_prob Output from `prob_sup_bglr()` containing `across$bayesian_stats`
@@ -164,7 +164,7 @@ plot_prob_intercept <- function(post_prob,
 #' highlighting sensitivity to the environment index relative to 1.
 #'
 #' Legendre note:
-#' - Under orthonormal Legendre basis, the degree-1 term multiplies #$# \tilde P_1(x) #$#,
+#' - Under orthonormal Legendre basis, the degree-1 term multiplies \eqn{\tilde P_1(x)},
 #'   so a threshold at 0 is more natural for directionality; `> 1` is kept for backward compatibility.
 #'
 #' @param post_prob Output from `prob_sup_bglr()` containing `across$bayesian_stats`
@@ -229,7 +229,7 @@ plot_prob_slope <- function(post_prob,
 #'
 #' Legendre-compatible:
 #' - The slope here corresponds to the degree-1 coefficient from the Legendre random regression
-#'   (as reported in `bayesian_stats$slope`). Intercept is #$# \alpha_g #$#.
+#'   (as reported in `bayesian_stats$slope`). Intercept is \eqn{\alpha_g}.
 #'
 #' @param post_prob Output from `prob_sup_bglr()` containing `across$bayesian_stats`
 #'   with columns `slope`, `intercept`, and an `R2` column.

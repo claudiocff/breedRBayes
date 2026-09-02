@@ -5,7 +5,7 @@
 #' slope per genotype based on the environment index estimated in Step 1.
 #'
 #' Conceptually, the model can be written as:
-#' #$# y_{ge} = \mu + l_e + \alpha_g + \beta_g \, l_e + \varepsilon_{ge} #$#
+#' \eqn{y_{ge} = \mu + l_e + \alpha_g + \beta_g \, l_e + \varepsilon_{ge}}
 #' where y is the phenotype for genotype g in environment e, l_e is the environment index,
 #' alpha_g is the genotype-specific intercept, beta_g is the genotype-specific slope
 #' (sensitivity to environment), and epsilon is the residual.
@@ -387,13 +387,13 @@ FW_bglr <- function(data, # data frame containing the data
 #' Predict Environment Gradient (Index) for New Environments via PCA Projection
 #'
 #' Uses the PCA mapping and coefficients learned in `FW_bglr` (when environmental covariates `W`
-#' were provided) to predict the environment gradient/index #$# l_e #$# for a new set of environments.
+#' were provided) to predict the environment gradient/index \eqn{l_e} for a new set of environments.
 #'
 #' Procedure:
 #' 1) Standardize the new `Wp` covariate matrix with the original training means and sds.
 #' 2) Project standardized `Wp` onto the retained PCA loadings (scores).
 #' 3) Standardize the new scores using the training score center/scale.
-#' 4) Multiply by the learned regression coefficients #$# \beta #$# from Step 1 to obtain #$# l_e #$#.
+#' 4) Multiply by the learned regression coefficients \eqn{\beta} from Step 1 to obtain \eqn{l_e}.
 #'
 #' @param model A fitted object from `FW_bglr` with `pca` and `beta_w` components populated
 #'   (i.e., `W` was provided during training).
@@ -401,7 +401,7 @@ FW_bglr <- function(data, # data frame containing the data
 #'   columns = same covariates used in training). Row names should be the environment IDs.
 #'
 #' @return
-#' A named numeric vector of predicted environment gradient values #$# l_e #$#, with names taken from
+#' A named numeric vector of predicted environment gradient values \eqn{l_e}, with names taken from
 #' `rownames(Wp)`.
 #'
 #' @examples

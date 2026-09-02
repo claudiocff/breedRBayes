@@ -22,7 +22,7 @@ highlighting sensitivity to the environment index relative to 1.
 \details{
 Legendre note:
 \itemize{
-\item Under orthonormal Legendre basis, the degree-1 term multiplies #$# \tilde P_1(x) #$#,
+\item Under orthonormal Legendre basis, the degree-1 term multiplies \eqn{\tilde P_1(x)},
 so a threshold at 0 is more natural for directionality; \verb{> 1} is kept for backward compatibility.
 \item Top-N set is formed by ranking genotypes on the mean \code{slope} (degree-1 coefficient).
 }

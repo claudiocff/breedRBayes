@@ -8,10 +8,10 @@
 #'
 #' Conceptual background:
 #' - Finlay–Wilkinson random regression with Legendre basis (intercept separated):
-#'   #$# y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge} #$#
-#'   where #$#x_e#$# is the scaled environment index in [-1,1], #$#\tilde P_d#$# are orthonormal Legendre polynomials.
+#'   \eqn{y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge}}
+#'   where \eqn{x_e} is the scaled environment index in [-1,1], \eqn{\tilde P_d} are orthonormal Legendre polynomials.
 #' - Orthonormalization of Legendre polynomials on [-1,1]:
-#'   #$# \tilde P_n(x) = \sqrt{\frac{2n+1}{2}}\,P_n(x), \quad \int_{-1}^{1}\tilde P_n(x)^2\,dx = 1 #$#.
+#'   \eqn{\tilde P_n(x) = \sqrt{\frac{2n+1}{2}}\,P_n(x), \quad \int_{-1}^{1}\tilde P_n(x)^2\,dx = 1}.
 #'   For compatibility with a separate intercept, the degree-0 column is set to 1.
 #'
 #' @param model A `bglr_met` object returned by `FW_bglr`. Must contain:
@@ -91,11 +91,11 @@
 #' environment-by-genotype predictions and per-genotype R^2 against observed means.
 #'
 #' Conceptual model with Legendre basis and separate intercept:
-#' #$# y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge} #$#
-#' where #$#x_e#$# is the environment index scaled to [-1,1], #$#\tilde P_d#$# are
-#' orthonormal Legendre polynomials for degrees #$#d=1,\dots,D#$#, and #$#\alpha_g#$#
+#' \eqn{y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge}}
+#' where \eqn{x_e} is the environment index scaled to [-1,1], \eqn{\tilde P_d} are
+#' orthonormal Legendre polynomials for degrees \eqn{d=1,\dots,D}, and \eqn{\alpha_g}
 #' is the genotype-specific intercept. The function collects posterior chains for
-#' #$#\alpha_g#$# and #$#\gamma_{g,d}#$#, variance components, and diagnostics.
+#' \eqn{\alpha_g} and \eqn{\gamma_{g,d}}, variance components, and diagnostics.
 #'
 #' @param model An object of class `bglr_met` returned by `FW_bglr`, including its
 #'   `path` (saveAt), posterior effect matrices (`INT`, `COEF`, `SLOPE`, `GE`, `GGE`),

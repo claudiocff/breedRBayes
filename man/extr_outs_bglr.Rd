@@ -51,11 +51,11 @@ environment-by-genotype predictions and per-genotype R^2 against observed means.
 }
 \details{
 Conceptual model with Legendre basis and separate intercept:
-#$# y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge} #$#
-where #$#x_e#$# is the environment index scaled to \link{-1,1}, #$#\tilde P_d#$# are
-orthonormal Legendre polynomials for degrees #$#d=1,\dots,D#$#, and #$#\alpha_g#$#
+\eqn{y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge}}
+where \eqn{x_e} is the environment index scaled to \link{-1,1}, \eqn{\tilde P_d} are
+orthonormal Legendre polynomials for degrees \eqn{d=1,\dots,D}, and \eqn{\alpha_g}
 is the genotype-specific intercept. The function collects posterior chains for
-#$#\alpha_g#$# and #$#\gamma_{g,d}#$#, variance components, and diagnostics.
+\eqn{\alpha_g} and \eqn{\gamma_{g,d}}, variance components, and diagnostics.
 
 Files read for diagnostics:
 \itemize{

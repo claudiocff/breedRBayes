@@ -14,12 +14,12 @@ predict_env_gradient_pca(model, Wp)
 columns = same covariates used in training). Row names should be the environment IDs.}
 }
 \value{
-A named numeric vector of predicted environment gradient values #$# l_e #$#, with names taken from
+A named numeric vector of predicted environment gradient values \eqn{l_e}, with names taken from
 \code{rownames(Wp)}.
 }
 \description{
 Uses the PCA mapping and coefficients learned in \code{FW_bglr} (when environmental covariates \code{W}
-were provided) to predict the environment gradient/index #$# l_e #$# for a new set of environments.
+were provided) to predict the environment gradient/index \eqn{l_e} for a new set of environments.
 }
 \details{
 Procedure:
@@ -27,7 +27,7 @@ Procedure:
 \item Standardize the new \code{Wp} covariate matrix with the original training means and sds.
 \item Project standardized \code{Wp} onto the retained PCA loadings (scores).
 \item Standardize the new scores using the training score center/scale.
-\item Multiply by the learned regression coefficients #$# \beta #$# from Step 1 to obtain #$# l_e #$#.
+\item Multiply by the learned regression coefficients \eqn{\beta} from Step 1 to obtain \eqn{l_e}.
 }
 }
 \examples{

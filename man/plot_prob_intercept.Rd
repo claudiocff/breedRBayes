@@ -22,7 +22,7 @@ for genotype intercepts, highlighting Top-N genotypes and checks.
 \details{
 Legendre compatibility:
 \itemize{
-\item Intercepts are genotype-level #$# \alpha_g #$# means; slope terms (Legendre coefficients)
+\item Intercepts are genotype-level \eqn{\alpha_g} means; slope terms (Legendre coefficients)
 do not enter here. Top-N is ranked by the mean intercept.
 \item The Top-N set is formed by ranking genotypes on the mean \code{intercept}.
 \item The y-axis shows \code{prob_top}: probability of being in the global top tail defined by \code{int}

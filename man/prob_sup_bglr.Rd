@@ -25,9 +25,9 @@ An object of class \code{probsup_bglr} (a list) with:
 \itemize{
 \item \code{g_hpd}: posterior summaries for genotype intercepts (medians, quantiles, SD, probability vs best check, t-statistic, p-value, check flag, N).
 \item \code{perfo}: across-environment performance probabilities (top tail by \code{int} or bottom if \code{increase = FALSE}).
-\item \code{pair_perfo}: matrix of pairwise performance probabilities (#$# P(\alpha_i > \alpha_j) #$# or #$# < #$#).
+\item \code{pair_perfo}: matrix of pairwise performance probabilities (\eqn{P(\alpha_i > \alpha_j)} or \eqn{<}).
 \item \code{stabi}: across-environment stability probabilities (low-variance tail).
-\item \code{pair_stabi}: matrix of pairwise stability probabilities (#$# P(\mathrm{Var}_e(\text{GE}_i) < \mathrm{Var}_e(\text{GE}_j)) #$#).
+\item \code{pair_stabi}: matrix of pairwise stability probabilities (\eqn{P(\mathrm{Var}_e(\text{GE}_i) < \mathrm{Var}_e(\text{GE}_j))}).
 \item \code{best_probs}: probabilities of being better than the best check.
 \item \code{joint_prob}: product of performance and stability probabilities.
 \item \code{reg}: data frame with regression profiles over the environment gradient for each genotype (using \code{gradient_basis}).
@@ -49,18 +49,18 @@ using the output produced by \code{extr_outs_bglr} (which itself summarizes a \c
 }
 \details{
 Under the Finlay–Wilkinson formulation with Legendre basis and separate intercept:
-#$# y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge} #$#
-this function provides probabilities and summaries for #$# \alpha_g #$# (genotypic intercepts),
-the degree-specific Legendre coefficients #$# \gamma_{g,d} #$#, and their environment-specific predictions.
+\eqn{y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge}}
+this function provides probabilities and summaries for \eqn{\alpha_g} (genotypic intercepts),
+the degree-specific Legendre coefficients \eqn{\gamma_{g,d}}, and their environment-specific predictions.
 
 Specifically, it computes:
 \itemize{
 \item Across-environment performance probability: fraction of posterior samples in which a genotype’s intercept
 ranks in the top tail defined by \code{int} (or bottom tail if \code{increase = FALSE}).
-\item Pairwise performance probability: #$# P\left(\alpha_i > \alpha_j\right) #$# (or #$# < #$# if \code{increase = FALSE}).
+\item Pairwise performance probability: \eqn{P\left(\alpha_i > \alpha_j\right)} (or \eqn{<} if \code{increase = FALSE}).
 \item Across-environment stability probability: fraction of posterior samples in which the variance of the
 genotype-specific centered G×E predictions is below the \code{int}-quantile (i.e., more stable).
-\item Pairwise stability probability: #$# P\left(\mathrm{Var}_{e}(\text{GE}\emph{i) < \mathrm{Var}}{e}(\text{GE}_j)\right) #$#.
+\item Pairwise stability probability: \eqn{P\left(\mathrm{Var}_{e}(\text{GE}_i) < \mathrm{Var}_{e}(\text{GE}_j)\right)}.
 \item Joint probability: product of performance and stability probabilities (heuristic).
 \item Within-environment performance probability: fraction of posterior samples for each environment in which the
 genotype’s environment-specific prediction ranks in the top tail defined by \code{int} (or bottom tail if \code{increase = FALSE}).

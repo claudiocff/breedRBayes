@@ -43,10 +43,10 @@ the separate genotype intercept used in the Finlay–Wilkinson random regression
 Conceptual background:
 \itemize{
 \item Finlay–Wilkinson random regression with Legendre basis (intercept separated):
-#$# y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge} #$#
-where #$#x_e#$# is the scaled environment index in \link{-1,1}, #$#\tilde P_d#$# are orthonormal Legendre polynomials.
+\eqn{y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge}}
+where \eqn{x_e} is the scaled environment index in \link{-1,1}, \eqn{\tilde P_d} are orthonormal Legendre polynomials.
 \item Orthonormalization of Legendre polynomials on \link{-1,1}:
-#$# \tilde P_n(x) = \sqrt{\frac{2n+1}{2}}\,P_n(x), \quad \int_{-1}^{1}\tilde P_n(x)^2\,dx = 1 #$#.
+\eqn{\tilde P_n(x) = \sqrt{\frac{2n+1}{2}}\,P_n(x), \quad \int_{-1}^{1}\tilde P_n(x)^2\,dx = 1}.
 For compatibility with a separate intercept, the degree-0 column is set to 1.
 }
 

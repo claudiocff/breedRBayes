@@ -74,7 +74,7 @@ slope per genotype based on the environment index estimated in Step 1.
 }
 \details{
 Conceptually, the model can be written as:
-#$# y_{ge} = \mu + l_e + \alpha_g + \beta_g \, l_e + \varepsilon_{ge} #$#
+\eqn{y_{ge} = \mu + l_e + \alpha_g + \beta_g \, l_e + \varepsilon_{ge}}
 where y is the phenotype for genotype g in environment e, l_e is the environment index,
 alpha_g is the genotype-specific intercept, beta_g is the genotype-specific slope
 (sensitivity to environment), and epsilon is the residual.

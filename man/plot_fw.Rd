@@ -31,7 +31,7 @@ Input compatibility:
 \itemize{
 \item Uses \code{post_prob$across$reg} created from the Legendre basis (\code{gradient_basis})
 in \code{prob_sup_bglr}, where predictions across the adaptive gradient are computed as
-#$# \hat{y}\emph{{g}(l) = \sum}{d=0}^{D} \beta_{g,d}\,\mathrm{deg}_d(l) #$#,
+\eqn{\hat{y}_{g}(l) = \sum_{d=0}^{D} \beta_{g,d}\,\mathrm{deg}_d(l)},
 with \code{deg0 = 1} and \code{deg1..degD} being orthonormalized Legendre basis columns.
 \item The Top-N genotypes are defined by the highest mean of \code{value} across the gradient.
 \item Lines are colored and thickened for \code{TopN} and \code{Check} categories; others are thin and grey.

@@ -21,7 +21,7 @@ coloring by an R2 statistic (e.g., goodness-of-fit of the FW regression per geno
 Legendre-compatible:
 \itemize{
 \item The slope here corresponds to the degree-1 coefficient from the Legendre random regression
-(as reported in \code{bayesian_stats$slope}). Intercept is #$# \alpha_g #$#.
+(as reported in \code{bayesian_stats$slope}). Intercept is \eqn{\alpha_g}.
 \item This function assumes that \code{post_prob$across$bayesian_stats} contains an \code{R2} column.
 If \code{R2} was not computed earlier, you should add it before calling this function
 (e.g., based on observed vs fitted FW lines per genotype).

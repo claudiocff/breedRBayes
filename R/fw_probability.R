@@ -5,17 +5,17 @@
 #' using the output produced by `extr_outs_bglr` (which itself summarizes a `FW_bglr` fit).
 #'
 #' Under the Finlay–Wilkinson formulation with Legendre basis and separate intercept:
-#' #$# y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge} #$#
-#' this function provides probabilities and summaries for #$# \alpha_g #$# (genotypic intercepts),
-#' the degree-specific Legendre coefficients #$# \gamma_{g,d} #$#, and their environment-specific predictions.
+#' \eqn{y_{ge} = \mu + l_e + \alpha_g + \sum_{d=1}^{D} \gamma_{g,d}\,\tilde P_d(x_e) + \varepsilon_{ge}}
+#' this function provides probabilities and summaries for \eqn{\alpha_g} (genotypic intercepts),
+#' the degree-specific Legendre coefficients \eqn{\gamma_{g,d}}, and their environment-specific predictions.
 #'
 #' Specifically, it computes:
 #' - Across-environment performance probability: fraction of posterior samples in which a genotype’s intercept
 #'   ranks in the top tail defined by `int` (or bottom tail if `increase = FALSE`).
-#' - Pairwise performance probability: #$# P\left(\alpha_i > \alpha_j\right) #$# (or #$# < #$# if `increase = FALSE`).
+#' - Pairwise performance probability: \eqn{P\left(\alpha_i > \alpha_j\right)} (or \eqn{<} if `increase = FALSE`).
 #' - Across-environment stability probability: fraction of posterior samples in which the variance of the
 #'   genotype-specific centered G×E predictions is below the `int`-quantile (i.e., more stable).
-#' - Pairwise stability probability: #$# P\left(\mathrm{Var}_{e}(\text{GE}_i) < \mathrm{Var}_{e}(\text{GE}_j)\right) #$#.
+#' - Pairwise stability probability: \eqn{P\left(\mathrm{Var}_{e}(\text{GE}_i) < \mathrm{Var}_{e}(\text{GE}_j)\right)}.
 #' - Joint probability: product of performance and stability probabilities (heuristic).
 #' - Within-environment performance probability: fraction of posterior samples for each environment in which the
 #'   genotype’s environment-specific prediction ranks in the top tail defined by `int` (or bottom tail if `increase = FALSE`).
@@ -62,9 +62,9 @@
 #' - `across`:
 #'   - `g_hpd`: posterior summaries for genotype intercepts (medians, quantiles, SD, probability vs best check, t-statistic, p-value, check flag, N).
 #'   - `perfo`: across-environment performance probabilities (top tail by `int` or bottom if `increase = FALSE`).
-#'   - `pair_perfo`: matrix of pairwise performance probabilities (#$# P(\alpha_i > \alpha_j) #$# or #$# < #$#).
+#'   - `pair_perfo`: matrix of pairwise performance probabilities (\eqn{P(\alpha_i > \alpha_j)} or \eqn{<}).
 #'   - `stabi`: across-environment stability probabilities (low-variance tail).
-#'   - `pair_stabi`: matrix of pairwise stability probabilities (#$# P(\mathrm{Var}_e(\text{GE}_i) < \mathrm{Var}_e(\text{GE}_j)) #$#).
+#'   - `pair_stabi`: matrix of pairwise stability probabilities (\eqn{P(\mathrm{Var}_e(\text{GE}_i) < \mathrm{Var}_e(\text{GE}_j))}).
 #'   - `best_probs`: probabilities of being better than the best check.
 #'   - `joint_prob`: product of performance and stability probabilities.
 #'   - `reg`: data frame with regression profiles over the environment gradient for each genotype (using `gradient_basis`).
