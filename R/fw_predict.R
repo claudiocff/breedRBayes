@@ -1,7 +1,17 @@
-# Calcula a probabilidade de cada genótipo ser o máximo em cada ponto do gradiente
-# model: objeto retornado por FW_bglr
-# P_pred: vetor nomeado com os valores de gradiente (l) a avaliar
-# tie.method: "share" divide a contagem igualmente entre empatados; "first" escolhe o primeiro
+#' Probability that each genotype is the winner along an environment gradient
+#'
+#' For each point of a (predicted) environment gradient, computes the posterior
+#' probability that each genotype has the maximum predicted value, from the
+#' random-regression posterior draws of a [FW_bglr()] fit.
+#'
+#' @param model An object returned by [FW_bglr()].
+#' @param l_new Named numeric vector of environment-index values to evaluate.
+#' @param tie.method `"share"` splits the count equally among ties; `"first"`
+#'   assigns the win to the first tied genotype.
+#' @return A list with `prob` (`genotype x gradient` probability matrix) and
+#'   `winner` (most probable genotype per gradient point).
+#' @seealso [FW_bglr()], [predict_env_gradient_pca()]
+#' @export
 prob_best_by_gradient <- function(model, l_new, tie.method = c("share","first")) {
   tie.method <- match.arg(tie.method)
   
@@ -72,10 +82,14 @@ prob_best_by_gradient <- function(model, l_new, tie.method = c("share","first"))
 }
 
 
-# Calcula produtividade média e desvio-padrão por genótipo em cada ponto do gradiente
-# model: objeto retornado por FW_bglr
-# l_new: vetor nomeado com valores do gradiente (ex.: saída de predict_env_gradient_pca)
-# retorna: list(mean = [gen x grad], sd = [gen x grad])
+#' Posterior mean and SD of genotype performance along an environment gradient
+#'
+#' @param model An object returned by [FW_bglr()].
+#' @param l_new Named numeric vector of environment-index values (e.g. output of
+#'   [predict_env_gradient_pca()]).
+#' @return A list with `mean` and `sd` matrices (`genotype x gradient`).
+#' @seealso [FW_bglr()], [prob_best_by_gradient()]
+#' @export
 prod_summary_by_gradient <- function(model, l_new) {
   # 1) Reescalar gradiente para [-1, 1] usando o range do treino
   rng <- model$range

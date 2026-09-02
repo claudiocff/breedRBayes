@@ -1,0 +1,40 @@
+Package: breedRBayes
+Type: Package
+Title: ASReml-Style Formula Front-End for the BGLR Bayesian Engine
+Version: 0.0.0.9000
+Authors@R: c(
+    person("Claudio", "Fernandes", role = c("aut", "cre"),
+           email = "claudio.fernandes@example.com"))
+Description: A formula-based interface, inspired by 'asreml' and 'sommer',
+    for fitting Bayesian mixed models with the 'BGLR' engine. Supports
+    genomic prediction (GBLUP), random-regression / reaction-norm models,
+    multi-trait models and factor-analytic structures. Provides extraction
+    of posterior chains, variance components, heritabilities as full
+    posterior distributions, and Markov-chain convergence diagnostics.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: false
+Depends: R (>= 4.1.0)
+Imports:
+    BGLR,
+    coda,
+    RhpcBLASctl,
+    stats,
+    utils,
+    dplyr,
+    tidyr,
+    reshape2,
+    tibble,
+    ggplot2
+Suggests:
+    ggrepel,
+    viridis,
+    SpATS,
+    EnvRtype,
+    parallel,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+RoxygenNote: 7.3.2
+Roxygen: list(markdown = TRUE)
+Config/testthat/edition: 3

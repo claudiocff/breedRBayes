@@ -1,0 +1,10 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.git$
+^\.gitignore$
+^ASReml-R-Reference-Manual-4\.2\.pdf$
+^BGLR\.pdf$
+^sommer\.pdf$
+^data_examples$
+^breedRBayes-manual\.pdf$
+^inst/scripts$

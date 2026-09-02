@@ -174,61 +174,47 @@ extr_outs_bglr <- function(model, gen) {
     chain_gge   = model$GGE      # uncentered G + GE
   )
   
-  # Variances: intercept, l from Step 1, each slope_d from Step 2, and error
-  # Note: the error variance must come from Step 2
+  # Engine (bbglr) term keys, resolved at fit time by FW_bglr().
+  keys <- model$keys
+
+  # Variances: intercept (Step 2), l (Step-1 environment index), the fused
+  # Legendre:genomic slope term (Step 2), and residual error (Step 2).
   variances_list <- list(
     data.frame(effect = "intercept",
-               var = model$fit2$ETA$int$varB,
-               sd  = model$fit2$ETA$int$SD.varB),
+               var = model$fit2$ETA[[keys$int]]$varB,
+               sd  = model$fit2$ETA[[keys$int]]$SD.varB),
     data.frame(effect = "l",
-               var = model$fit1$ETA$l$varB,
-               sd  = model$fit1$ETA$l$SD.varB)
-  )
-  # Append slope variances for degrees 1..D
-  if (model$order >= 1) {
-    for (d in seq_len(model$order)) {
-      nm <- paste0("slope", d)
-      variances_list[[length(variances_list) + 1]] <-
-        data.frame(effect = nm,
-                   var = model$fit2$ETA[[nm]]$varB,
-                   sd  = model$fit2$ETA[[nm]]$SD.varB)
-    }
-  }
-  # Error variance from Step 2
-  variances_list[[length(variances_list) + 1]] <-
+               var = model$l_var$varB,
+               sd  = model$l_var$SD.varB),
+    data.frame(effect = "slope",
+               var = model$fit2$ETA[[keys$slope]]$varB,
+               sd  = model$fit2$ETA[[keys$slope]]$SD.varB),
     data.frame(effect = "error",
                var = model$fit2$varE,
                sd  = model$fit2$SD.varE)
-  
+  )
   variances <- do.call(rbind, variances_list)
-  
-  # Diagnostic traces read from BGLR output files
-  path <- model$path
-  mu_trace      <- scan(paste0(path, "mu.dat"))
-  int_trace     <- scan(paste0(path, "ETA_int_varB.dat"))
-  l_trace       <- scan(paste0(path, "ETA_l_varB.dat"))
-  slope_traces  <- list()
-  if (model$order >= 1) {
-    for (d in seq_len(model$order)) {
-      slope_traces[[paste0("slope", d)]] <-
-        scan(paste0(path, "ETA_slope", d, "_varB.dat"))
-    }
-  }
+
+  # Diagnostic variance-component traces read from the BGLR output files.
+  # Step-2 traces live under `path`; the environment-index (l) trace under `path1`.
+  path  <- model$path
+  path1 <- if (!is.null(model$path1)) model$path1 else model$path
+  mu_trace    <- scan(paste0(path,  "mu.dat"), quiet = TRUE)
+  int_trace   <- scan(paste0(path,  "ETA_", keys$int,   "_varB.dat"), quiet = TRUE)
+  slope_trace <- scan(paste0(path,  "ETA_", keys$slope, "_varB.dat"), quiet = TRUE)
+  l_trace     <- scan(paste0(path1, "ETA_", keys$l,     "_varB.dat"), quiet = TRUE)
   n_iter <- length(mu_trace)
-  
-  # Assemble diagnostic data frame (mu, intercept, l, each slope_d, and iteration)
+  # Align the (possibly separately-run) Step-1 l trace to the Step-2 length.
+  if (length(l_trace) != n_iter) length(l_trace) <- n_iter
+
+  # Assemble diagnostic data frame (mu, intercept, l, slope, and iteration)
   diagnostic <- data.frame(
     mu = mu_trace,
     intercept = int_trace,
     l = l_trace,
+    slope1 = slope_trace,
     iter = seq_len(n_iter)
   )
-  # Add slope_d columns dynamically if present
-  if (length(slope_traces) > 0) {
-    for (nm in names(slope_traces)) {
-      diagnostic[[nm]] <- slope_traces[[nm]]
-    }
-  }
   
   # Effective sample sizes for diagnostics (excluding the iteration index)
   effective_sizes <- coda::effectiveSize(diagnostic |> dplyr::select(-iter))
