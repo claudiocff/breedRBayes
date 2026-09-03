@@ -123,10 +123,14 @@ solution <- function(fit, term = NULL, type = NULL, prob = 0.95) {
 
 #' Posterior genomic estimated breeding values (GEBV)
 #'
-#' Reconstructs per-genotype genetic values for a `vm()` term from the saved BGLR
-#' effect samples, mapping the ridge coefficients back through the PC rotation
-#' (`genetic value = PC %*% b`), pooled across chains. This is [solution()]
-#' specialised to a genomic term, with the value column named `gebv`.
+#' @description
+#' **Deprecated.** Use [solution()], which extracts posterior solutions for any
+#' term (genomic `vm()` BLUPs, plain random-factor BLUPs, and fixed effects).
+#' `gebv(fit, term)` is equivalent to `solution(fit, term, type = "random")` with
+#' the value column renamed `gebv`.
+#'
+#' It still works for a `vm()` genomic term for now, mapping the ridge
+#' coefficients back through the PC rotation (`genetic value = PC %*% b`).
 #'
 #' @param fit A `breedRB_fit` (single-trait).
 #' @param term Genetic term identifier (label or key). Defaults to the first
@@ -137,9 +141,11 @@ solution <- function(fit, term = NULL, type = NULL, prob = 0.95) {
 #'   (`nDraws x nLevel`) attached as attribute `"draws"`.
 #' @examples
 #' \donttest{ head(gebv(fit)) }
-#' @seealso [solution()] for BLUPs of any random term and fixed-effect estimates.
+#' @seealso [solution()], the general replacement.
 #' @export
 gebv <- function(fit, term = NULL, prob = 0.95) {
+  .Deprecated("solution", package = "breedRBayes",
+              msg = "gebv() is deprecated; use solution(fit, term, type = \"random\") instead.")
   stopifnot(inherits(fit, "breedRB_fit"))
   if (isTRUE(fit$response$multitrait)) {
     stop("gebv() currently supports single-trait fits; use the per-trait chains directly.",

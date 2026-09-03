@@ -20,7 +20,7 @@ distributions, genetic correlations, and Markov-chain convergence diagnostics.
   - **Factor-analytic** — `fa(gen, k)` / `rrc(gen, k)` reduced-rank genetic
     covariance.
 - **Multiple chains** for Gelman–Rubin R-hat and other diagnostics.
-- **Posterior everything** — `varcomp()`, `heritability()` and `gebv()` return
+- **Posterior everything** — `varcomp()`, `heritability()` and `solution()` return
   full posterior draws, not just point estimates.
 - **Diagnostics** — `mcmc_diag()` (R-hat, effective sample size, Geweke) plus
   trace and posterior-density plots.
@@ -78,8 +78,8 @@ fit <- bbglr(
 
 varcomp(fit)          # posterior variance components
 heritability(fit)     # h2 as a full posterior distribution
-mcmc_diag(fit, plot = TRUE)   # R-hat, ESS, Geweke + ggplot2 trace plots
-gebv(fit)             # posterior genomic breeding values (a vm() term)
+mcmc_diag(fit, plot = TRUE)          # R-hat, ESS, Geweke + ggplot2 trace plots
+solution(fit, term = "gen")          # posterior genomic breeding values
 
 plot_trace(fit)       # chain trace plots
 plot_posterior(heritability(fit))
@@ -87,8 +87,9 @@ plot_posterior(heritability(fit))
 
 ### Extracting solutions for any term
 
-`gebv()` is specific to a genomic `vm()` term. For a plain random factor (fitted
-without a relationship matrix) or for fixed effects, use `solution()`:
+`solution()` extracts posterior solutions for any term — genomic `vm()` BLUPs, a
+plain random factor (fitted without a relationship matrix), random-regression
+coefficients, or fixed effects:
 
 ```r
 fit <- bbglr(yield ~ env + env:rep, random = ~ gen, residual = ~ units, data = dat)
@@ -98,6 +99,7 @@ solution(fit, term = "env", type = "fixed")    # fixed-effect estimates
 ```
 
 `type` is optional and, when given, is checked against the term's actual role.
+(`gebv()` is deprecated — it now calls `solution()` internally.)
 
 ### Random regression (reaction norm)
 
@@ -155,7 +157,7 @@ scripts live in `inst/scripts/`.
 ## Documentation
 
 Every exported function is documented; see `?bbglr`, `?varcomp`,
-`?heritability`, `?mcmc_diag`, `?gebv` and `?FW_bglr`. A full PDF reference
+`?heritability`, `?mcmc_diag`, `?solution` and `?FW_bglr`. A full PDF reference
 manual (`breedRBayes-manual.pdf`) is included at the repository root.
 
 ## License

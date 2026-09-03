@@ -39,7 +39,13 @@ test_that("bbglr fits GBLUP and recovers heritability", {
   expect_true(all(c("n_eff", "Rhat") %in% names(d)))
   expect_true(all(d$Rhat < 1.3, na.rm = TRUE))
 
-  g <- gebv(fit)
+  s <- solution(fit, term = "vm(gen, G)", type = "random")
+  expect_equal(nrow(s), nrow(sim$G))
+  expect_true(all(c("effect", "solution", "sd", "lower", "upper") %in% names(s)))
+
+  # gebv() still works but is deprecated and delegates to solution()
+  g <- suppressWarnings(gebv(fit))
+  expect_warning(gebv(fit), "deprecated")
   expect_equal(nrow(g), nrow(sim$G))
   expect_true(all(c("ID", "gebv", "sd") %in% names(g)))
 })

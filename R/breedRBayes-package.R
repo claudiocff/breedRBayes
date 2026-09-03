@@ -11,7 +11,7 @@
 #'
 #' @section Main entry point:
 #' [bbglr()] fits a model. See [varcomp()], [heritability()], [mcmc_diag()] and
-#' [gebv()] for post-processing.
+#' [solution()] for post-processing.
 #'
 #' @keywords internal
 "_PACKAGE"

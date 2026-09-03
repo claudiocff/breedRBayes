@@ -20,14 +20,17 @@ ordered by decreasing \code{gebv}, with the pooled draws matrix
 (\verb{nDraws x nLevel}) attached as attribute \code{"draws"}.
 }
 \description{
-Reconstructs per-genotype genetic values for a \code{vm()} term from the saved BGLR
-effect samples, mapping the ridge coefficients back through the PC rotation
-(\verb{genetic value = PC \%*\% b}), pooled across chains. This is \code{\link[=solution]{solution()}}
-specialised to a genomic term, with the value column named \code{gebv}.
+\strong{Deprecated.} Use \code{\link[=solution]{solution()}}, which extracts posterior solutions for any
+term (genomic \code{vm()} BLUPs, plain random-factor BLUPs, and fixed effects).
+\code{gebv(fit, term)} is equivalent to \code{solution(fit, term, type = "random")} with
+the value column renamed \code{gebv}.
+
+It still works for a \code{vm()} genomic term for now, mapping the ridge
+coefficients back through the PC rotation (\verb{genetic value = PC \%*\% b}).
 }
 \examples{
 \donttest{ head(gebv(fit)) }
 }
 \seealso{
-\code{\link[=solution]{solution()}} for BLUPs of any random term and fixed-effect estimates.
+\code{\link[=solution]{solution()}}, the general replacement.
 }

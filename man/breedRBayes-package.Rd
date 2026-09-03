@@ -18,7 +18,7 @@ Markov-chain convergence diagnostics.
 \section{Main entry point}{
 
 \code{\link[=bbglr]{bbglr()}} fits a model. See \code{\link[=varcomp]{varcomp()}}, \code{\link[=heritability]{heritability()}}, \code{\link[=mcmc_diag]{mcmc_diag()}} and
-\code{\link[=gebv]{gebv()}} for post-processing.
+\code{\link[=solution]{solution()}} for post-processing.
 }
 
 \author{
