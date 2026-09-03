@@ -1,4 +1,4 @@
-# breedRBayes
+# breedRBayes <img src="man/figures/logo.png" align="right" height="139" alt="breedRBayes hex logo" />
 
 **An ASReml-style formula front-end for the [BGLR](https://cran.r-project.org/package=BGLR) Bayesian engine.**
 
