@@ -115,6 +115,13 @@ pr(fit, term = "gen", type = "random", threshold = 0.20)  # P(top 20%)
 pr(fit, term = "gen", type = "random", threshold = 0.10, higher = FALSE)  # P(bottom 10%)
 ```
 
+With `pair = TRUE` it returns the pairwise table of `P(A > B)` for every pair of
+levels (`A` is the member with the larger posterior mean):
+
+```r
+pr(fit, term = "gen", type = "random", pair = TRUE)   # columns: A, B, prob = P(A > B)
+```
+
 ### Random regression (reaction norm)
 
 ```r

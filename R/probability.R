@@ -22,24 +22,35 @@
 #' @param type Optional; one of `"random"` or `"fixed"`, validated against the
 #'   term's actual role. For a fixed term fitted with treatment contrasts the
 #'   reference level is not among the coefficients and is therefore excluded.
-#' @param threshold Selected fraction in `(0, 1)`; `0.20` = top 20%.
+#' @param threshold Selected fraction in `(0, 1)`; `0.20` = top 20%. Ignored when
+#'   `pair = TRUE`.
 #' @param higher Logical (default `TRUE`). If `TRUE` the "top" is the highest
-#'   values (e.g. yield); set `FALSE` when smaller values are better.
-#' @return A data frame with `effect` (level name), `solution` (posterior mean),
-#'   and `prob` (posterior probability of ranking in the selected fraction),
-#'   ordered by decreasing `prob`. The number of selected levels per draw
-#'   (`k`) and the `threshold` are attached as attributes.
+#'   values (e.g. yield); set `FALSE` when smaller values are better. Ignored when
+#'   `pair = TRUE`.
+#' @param pair Logical (default `FALSE`). If `TRUE`, return the pairwise table of
+#'   posterior probabilities \eqn{P(A > B)} for every pair of levels instead of
+#'   the top-fraction summary.
+#' @return If `pair = FALSE`, a data frame with `effect` (level name), `solution`
+#'   (posterior mean), and `prob` (posterior probability of ranking in the
+#'   selected fraction), ordered by decreasing `prob`, with `k` and `threshold`
+#'   attached as attributes. If `pair = TRUE`, a data frame with `A`, `B`, and
+#'   `prob` \eqn{= P(A > B)} for every unordered pair, where `A` is the member
+#'   with the larger posterior mean (so `prob >= 0.5` for well-separated pairs),
+#'   ordered by decreasing `prob`.
 #' @examples
 #' \donttest{
 #' # probability each genotype is in the top 20%
 #' pr(fit, term = "gen", type = "random", threshold = 0.20)
+#' # pairwise probabilities P(A > B)
+#' pr(fit, term = "gen", type = "random", pair = TRUE)
 #' }
 #' @seealso [solution()] for the underlying posterior draws.
 #' @export
-pr <- function(fit, term = NULL, type = NULL, threshold = 0.20, higher = TRUE) {
+pr <- function(fit, term = NULL, type = NULL, threshold = 0.20, higher = TRUE,
+               pair = FALSE) {
   stopifnot(inherits(fit, "breedRB_fit"))
-  if (!is.numeric(threshold) || length(threshold) != 1L ||
-      threshold <= 0 || threshold >= 1) {
+  if (!isTRUE(pair) && (!is.numeric(threshold) || length(threshold) != 1L ||
+                        threshold <= 0 || threshold >= 1)) {
     stop("`threshold` must be a single number strictly between 0 and 1.",
          call. = FALSE)
   }
@@ -47,6 +58,26 @@ pr <- function(fit, term = NULL, type = NULL, threshold = 0.20, higher = TRUE) {
   sol   <- solution(fit, term = term, type = type)
   draws <- attr(sol, "draws")                       # [nDraws x nEffect]
   n     <- ncol(draws)
+
+  if (isTRUE(pair)) {
+    means <- colMeans(draws)
+    ord   <- order(-means)                          # A = higher posterior mean
+    D     <- draws[, ord, drop = FALSE]
+    nm    <- colnames(D)
+    # P(A > B): compare each column against all others in one sweep per column.
+    P <- matrix(NA_real_, n, n, dimnames = list(nm, nm))
+    for (i in seq_len(n)) P[i, ] <- colMeans(D[, i] > D)
+    ij  <- utils::combn(n, 2L)                       # unordered pairs, A-index < B-index
+    out <- data.frame(A    = nm[ij[1L, ]],
+                      B    = nm[ij[2L, ]],
+                      prob = P[cbind(ij[1L, ], ij[2L, ])],
+                      row.names = NULL)
+    out <- out[order(-out$prob), ]
+    rownames(out) <- NULL
+    attr(out, "comparison") <- "P(A > B)"
+    return(out)
+  }
+
   k     <- max(1L, round(threshold * n))            # levels flagged per draw
 
   # Rank each draw independently; flag the top-k (or bottom-k) levels.

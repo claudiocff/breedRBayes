@@ -59,6 +59,12 @@ test_that("bbglr fits GBLUP and recovers heritability", {
   # top-ranked genotype by posterior mean should have high top-20% probability
   expect_gt(p$prob[1], 0.5)
 
+  # pr(pair = TRUE): pairwise P(A > B)
+  pp <- pr(fit, term = "vm(gen, G)", type = "random", pair = TRUE)
+  expect_equal(nrow(pp), choose(nrow(sim$G), 2))
+  expect_true(all(c("A", "B", "prob") %in% names(pp)))
+  expect_true(all(pp$prob >= 0 & pp$prob <= 1))
+
   # gebv() still works but is deprecated and delegates to solution()
   g <- suppressWarnings(gebv(fit))
   expect_warning(gebv(fit), "deprecated")

@@ -4,7 +4,7 @@
 \alias{pr}
 \title{Posterior probability of ranking in the top fraction}
 \usage{
-pr(fit, term = NULL, type = NULL, threshold = 0.2, higher = TRUE)
+pr(fit, term = NULL, type = NULL, threshold = 0.2, higher = TRUE, pair = FALSE)
 }
 \arguments{
 \item{fit}{A \code{breedRB_fit} (single-trait).}
@@ -16,16 +16,25 @@ the internal key). If \code{NULL}, the first random term is used.}
 term's actual role. For a fixed term fitted with treatment contrasts the
 reference level is not among the coefficients and is therefore excluded.}
 
-\item{threshold}{Selected fraction in \verb{(0, 1)}; \code{0.20} = top 20\%.}
+\item{threshold}{Selected fraction in \verb{(0, 1)}; \code{0.20} = top 20\%. Ignored when
+\code{pair = TRUE}.}
 
 \item{higher}{Logical (default \code{TRUE}). If \code{TRUE} the "top" is the highest
-values (e.g. yield); set \code{FALSE} when smaller values are better.}
+values (e.g. yield); set \code{FALSE} when smaller values are better. Ignored when
+\code{pair = TRUE}.}
+
+\item{pair}{Logical (default \code{FALSE}). If \code{TRUE}, return the pairwise table of
+posterior probabilities \eqn{P(A > B)} for every pair of levels instead of
+the top-fraction summary.}
 }
 \value{
-A data frame with \code{effect} (level name), \code{solution} (posterior mean),
-and \code{prob} (posterior probability of ranking in the selected fraction),
-ordered by decreasing \code{prob}. The number of selected levels per draw
-(\code{k}) and the \code{threshold} are attached as attributes.
+If \code{pair = FALSE}, a data frame with \code{effect} (level name), \code{solution}
+(posterior mean), and \code{prob} (posterior probability of ranking in the
+selected fraction), ordered by decreasing \code{prob}, with \code{k} and \code{threshold}
+attached as attributes. If \code{pair = TRUE}, a data frame with \code{A}, \code{B}, and
+\code{prob} \eqn{= P(A > B)} for every unordered pair, where \code{A} is the member
+with the larger posterior mean (so \code{prob >= 0.5} for well-separated pairs),
+ordered by decreasing \code{prob}.
 }
 \description{
 For a model term, compute the posterior probability that each level ranks
@@ -44,6 +53,8 @@ change the ranking, so \code{pr()} is unaffected by centering.
 \donttest{
 # probability each genotype is in the top 20\%
 pr(fit, term = "gen", type = "random", threshold = 0.20)
+# pairwise probabilities P(A > B)
+pr(fit, term = "gen", type = "random", pair = TRUE)
 }
 }
 \seealso{
