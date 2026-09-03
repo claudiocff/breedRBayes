@@ -125,6 +125,24 @@ test_that("mrk() auto-selects GBLUP when markers >= genotypes and solve_SNP back
   expect_gt(cor(pred0$prediction, sim$gv[pred0$ID]), 0.8)
 })
 
+test_that("mrk() GBLUP builds a VanRaden G and stays non-singular with duplicate genotypes", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  sim <- simulate_markers(n_gen = 50, n_mrk = 300)
+  # force a rank-deficient raw genomic relationship: two identical genotypes
+  M <- sim$M; M["g2", ] <- M["g1", ]
+  raw_rank <- qr(tcrossprod(scale(M, center = TRUE, scale = FALSE)))$rank
+  expect_lt(raw_rank, nrow(M))                    # raw Z Z' is singular
+
+  fit <- bbglr(y ~ 1, random = ~ mrk(gen, M), data = sim$data,
+               relmat = list(M = M), nIter = 2000, burnIn = 800,
+               nChains = 1, verbose = FALSE)
+  # the fit succeeds and returns a value for every genotype despite the singular raw G
+  s <- solution(fit, term = .vm_keys(fit), type = "random")
+  expect_equal(nrow(s), nrow(M))
+  expect_true(all(is.finite(s$solution)))
+})
+
 test_that("predict() scores genotypes held out of training", {
   skip_on_cran()
   skip_if_not_installed("BGLR")

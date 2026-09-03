@@ -133,12 +133,14 @@ solution(fit, term = "gen", type = "random", add_mu = TRUE)
 directly, picking the cheaper of the two mathematically equivalent
 parameterizations:
 
-- **markers ≥ genotypes** → **GBLUP** (an `n × n` genomic relationship, fitted in
-  its principal-component basis),
+- **markers ≥ genotypes** → **GBLUP** (an `n × n` genomic relationship built
+  internally by **VanRaden's method 1**, `G = ZZ'/2Σpⱼqⱼ`, then fitted in its
+  principal-component basis; a small diagonal ridge keeps `G` non-singular),
 - **genotypes > markers** → **RR-BLUP** (estimate the `p` marker effects directly).
 
 Both give the same breeding values and the same heritability; only the compute
-cost differs. Pass `method = "GBLUP"` or `"RRBLUP"` to force one.
+cost differs. Pass `method = "GBLUP"` or `"RRBLUP"` to force one. The marker
+matrix should be coded as **0/1/2** allele dosages.
 
 ```r
 fit <- bbglr(yield ~ 1 + env, random = ~ mrk(gen, M), data = dat, relmat = list(M = M))

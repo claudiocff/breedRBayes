@@ -57,17 +57,31 @@
              ") not found in `relmat`.", call. = FALSE)
       }
       lev <- intersect(rownames(M0), unique(as.character(data[[comp$var]])))
-      Mc  <- scale(M0[lev, , drop = FALSE], center = TRUE, scale = FALSE)  # centre markers
-      center <- attr(Mc, "scaled:center")         # training column means (for predicting new genos)
+      Mc  <- scale(M0[lev, , drop = FALSE], center = TRUE, scale = FALSE)  # centre markers: Z = M - 2p
+      center <- attr(Mc, "scaled:center")         # training column means = 2p (for predicting new genos)
       attr(Mc, "scaled:center") <- NULL
       n <- length(lev); p <- ncol(Mc)
-      cc <- sum(Mc^2) / n                          # = tr(Mc Mc')/n  ~ VanRaden 2*sum(pq)
+      # VanRaden (2008) method-1 scaling: 2 * sum(p_j q_j), allele freqs p_j from
+      # the 0/1/2 dosage column means (center = 2p). Keeps the same denominator for
+      # GBLUP and RR-BLUP so the two stay prediction-equivalent.
+      pf <- center / 2
+      cc <- 2 * sum(pf * (1 - pf))
+      if (!is.finite(cc) || cc <= 0) {
+        stop("mrk(", comp$var, "): VanRaden scaling 2*sum(pq) is zero/invalid — ",
+             "markers appear monomorphic. Expecting a 0/1/2 dosage marker matrix.",
+             call. = FALSE)
+      }
       method <- if (identical(comp$method, "auto")) {
         if (p >= n) "GBLUP" else "RRBLUP"          # markers >= genotypes -> GBLUP
       } else comp$method
       Z <- .incidence(factor(data[[comp$var]], levels = lev))
       if (identical(method, "GBLUP")) {
-        G   <- tcrossprod(Mc) / cc                 # genomic relationship (mean diag ~ 1)
+        G   <- tcrossprod(Mc) / cc                 # VanRaden G = Z Z' / (2 sum pq), mean diag ~ 1
+        # Guarantee a non-singular (positive-definite) G: adding a small ridge to
+        # the diagonal shifts every eigenvalue up by `ridge`, so the PSD Gram matrix
+        # ZZ' can never stay singular (handles duplicate genotypes / p = n / collinear markers).
+        ridge <- 1e-6 * mean(diag(G))
+        diag(G) <- diag(G) + ridge
         rot <- .pc_rotation(G)
         X   <- Z %*% rot$PC
         colnames(X) <- lev

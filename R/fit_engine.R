@@ -24,9 +24,12 @@
 #' @param data A data frame.
 #' @param relmat Named list of matrices referenced by `mrk()` and `vm()`. For
 #'   `mrk()` the entry is a marker matrix with genotypes in rows (row names =
-#'   genotype IDs) and markers in columns. For `vm()` the entry is a covariance /
-#'   kernel matrix (K, not its inverse) — genomic, pedigree, environmic or any
-#'   custom kernel — with row/column names matching the factor levels.
+#'   genotype IDs) and markers in columns, coded as **0/1/2 allele dosages**; in
+#'   GBLUP mode `mrk()` builds the genomic relationship internally by VanRaden's
+#'   method 1 (\eqn{G = ZZ'/2\sum p_j q_j}) and adds a tiny diagonal ridge so `G`
+#'   is always non-singular. For `vm()` the entry is a covariance / kernel matrix
+#'   (K, not its inverse) — genomic, pedigree, environmic or any custom kernel —
+#'   with row/column names matching the factor levels.
 #' @param nIter,burnIn,thin MCMC controls passed to BGLR.
 #' @param nChains Integer number of independent chains (distinct seeds). Enables
 #'   Gelman-Rubin diagnostics when `> 1`.
