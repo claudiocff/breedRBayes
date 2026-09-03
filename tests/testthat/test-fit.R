@@ -156,6 +156,37 @@ test_that("mrk() GBLUP builds a VanRaden G and stays non-singular with duplicate
   expect_true(all(is.finite(s$solution)))
 })
 
+test_that("mrk(rank=) fits a low-rank GBLUP that still ranks genotypes and back-solves", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  sim <- simulate_markers(n_gen = 60, n_mrk = 300)
+  k   <- 20L
+  fit <- bbglr(y ~ 1, random = ~ mrk(gen, M, rank = 20), data = sim$data,
+               relmat = list(M = sim$M), nIter = 2500, burnIn = 900,
+               nChains = 1, verbose = FALSE)
+  key <- .vm_keys(fit)
+  gc  <- fit$meta[[key]]$components[[1]]
+  expect_equal(gc$method, "GBLUP")
+  expect_equal(gc$rank, k)
+  # the fitted design (and the cached rotation) keeps only k principal components
+  expect_equal(ncol(gc$bmap), k)
+  expect_equal(ncol(gc$gblup_rot$vectors), k)
+
+  s <- solution(fit, term = key, type = "random")
+  expect_equal(nrow(s), nrow(sim$M))                 # still one value per genotype
+  expect_true(all(is.finite(s$solution)))
+  # positively correlated with truth; the ceiling is low here because these
+  # markers have no low-rank structure, so a rank-20 fit discards real signal.
+  expect_gt(cor(s$solution, sim$gv[s$effect]), 0.4)
+
+  # solve_SNP reuses the cached rotation; effects reproduce the (rank-k) GEBVs
+  snp   <- solve_SNP(fit)
+  expect_true(all(is.finite(snp$effect)))
+  Mc    <- scale(sim$M[s$effect, ], center = TRUE, scale = FALSE)
+  recon <- as.numeric(Mc %*% snp$effect[match(colnames(Mc), snp$marker)])
+  expect_gt(cor(recon, s$solution), 0.999)
+})
+
 test_that("mrk() mean-imputes missing markers and drops near-constant markers", {
   skip_on_cran()
   skip_if_not_installed("BGLR")

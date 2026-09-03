@@ -4,21 +4,30 @@
 \alias{.pc_rotation}
 \title{Eigen (principal-component) rotation of a relationship matrix for GBLUP}
 \usage{
-.pc_rotation(K, tol = 1e-08)
+.pc_rotation(K, tol = 1e-08, rank = NA_integer_)
 }
 \arguments{
 \item{K}{Symmetric relationship / covariance matrix (row/col names = levels).}
 
-\item{tol}{Numeric tolerance below which eigenvalues are floored to 0.}
+\item{tol}{Numeric tolerance below which eigenvalues are treated as zero.}
+
+\item{rank}{Optional integer; keep only the top \code{rank} eigenvectors. \code{NA}
+(default) keeps every non-null direction (exact).}
 }
 \value{
-A list with \code{PC} (the rotation, \verb{nLevel x nLevel}) and \code{levels}
-(row/column names of \code{K}).
+A list with \code{PC} (the rotation, \verb{nLevel x rank}), \code{vectors} and
+\code{values} (the retained eigenpairs) and \code{levels} (row/column names of \code{K}).
 }
 \description{
 Reproduces the eigen-decomposition trick used to fit GBLUP through a Bayesian
 ridge regression in \pkg{BGLR}: \verb{K = PC PC'}, so a \code{BRR} model on the
 incidence-times-\code{PC} design has genotype effects recoverable as
 \code{tcrossprod(PC, B)}.
+}
+\details{
+Numerically-null directions (eigenvalue below \code{tol}) are dropped: they carry
+no genetic variance, so an all-zero \code{PC} column would only enlarge the design
+without changing the fit. If \code{rank} is supplied, only the top \code{rank}
+eigenvectors are kept (a low-rank / principal-component GBLUP approximation).
 }
 \keyword{internal}

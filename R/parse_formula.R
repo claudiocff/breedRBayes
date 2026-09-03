@@ -10,7 +10,7 @@
 # A component spec is one of:
 #   list(type = "factor",    var = <name>, center = <lgl>)
 #   list(type = "vm",        var = <name>, relmat = <key>)   # genomic / GBLUP
-#   list(type = "mrk",       var = <name>, relmat = <key>, method = <chr>)
+#   list(type = "mrk",       var = <name>, relmat = <key>, method = <chr>, rank = <int>)
 #                                                            # markers, auto GBLUP/RRBLUP
 #   list(type = "leg",       var = <name>, order = <int>)    # random regression
 #   list(type = "covariate", var = <name>)                   # numeric covariate
@@ -43,10 +43,16 @@
   switch(fname,
     vm = list(type = "vm", var = argnm(1),
               relmat = if (length(args) >= 2) as.character(args[[2]]) else NULL),
-    mrk = list(type = "mrk", var = argnm(1),
-               relmat = if (length(args) >= 2) as.character(args[[2]]) else NULL,
-               method = if (length(args) >= 3) match.arg(as.character(args[[3]]),
-                              c("auto", "GBLUP", "RRBLUP")) else "auto"),
+    mrk = {
+      # match named or positional args against mrk(var, M, method, rank)
+      mc <- match.call(function(var, M, method = "auto", rank = NULL) NULL, comp)
+      list(type = "mrk", var = as.character(mc$var),
+           relmat = if (!is.null(mc$M)) as.character(mc$M) else NULL,
+           method = if (!is.null(mc$method))
+                      match.arg(as.character(mc$method), c("auto", "GBLUP", "RRBLUP"))
+                    else "auto",
+           rank = if (!is.null(mc$rank)) as.integer(eval(mc$rank)) else NA_integer_)
+    },
     leg = ,
     rr  = list(type = "leg", var = argnm(1),
                order = if (length(args) >= 2) as.integer(eval(args[[2]])) else 1L),

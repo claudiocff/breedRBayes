@@ -25,6 +25,7 @@ Imports:
 Suggests:
     SpATS,
     EnvRtype,
+    RSpectra,
     parallel,
     testthat (>= 3.0.0),
     knitr,

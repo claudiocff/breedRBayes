@@ -8,10 +8,15 @@
 #' @param fixed Two-sided formula for the fixed/mean part, e.g. `yield ~ 1 + env`.
 #'   Use `cbind(t1, t2) ~ ...` for a multi-trait model.
 #' @param random One-sided formula of random terms, e.g. `~ mrk(gen, M)`. Special
-#'   functions: `mrk(f, M, method)` genomic effect from a **marker matrix** `M`
-#'   that automatically fits GBLUP or RR-BLUP, whichever is cheaper (`method` is
-#'   `"auto"`, `"GBLUP"` or `"RRBLUP"`; `"auto"` picks GBLUP when markers >=
-#'   genotypes, else RR-BLUP — the two are prediction-equivalent). A `mrk()` fit
+#'   functions: `mrk(f, M, method, rank)` genomic effect from a **marker matrix**
+#'   `M` that automatically fits GBLUP or RR-BLUP, whichever is cheaper (`method`
+#'   is `"auto"`, `"GBLUP"` or `"RRBLUP"`; `"auto"` picks GBLUP when markers >=
+#'   genotypes, else RR-BLUP — the two are prediction-equivalent). `rank` (GBLUP
+#'   only, default all) keeps just the top-`rank` principal components of the
+#'   genomic relationship — a low-rank / PC-GBLUP approximation that shrinks the
+#'   design and, when \pkg{RSpectra} is installed, is computed straight from the
+#'   markers without ever forming the `n x n` relationship matrix (much cheaper
+#'   for many genotypes). A `mrk()` fit
 #'   can score new genotypes with [predict.breedRB_fit()] and recover marker
 #'   effects with [solve_SNP()]; it is the recommended genomic term. `vm(f, K)`
 #'   effect of factor `f` with a supplied covariance matrix `K` — use it for a

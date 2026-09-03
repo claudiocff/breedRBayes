@@ -148,6 +148,19 @@ fit <- bbglr(yield ~ 1 + env, random = ~ mrk(gen, M), data = dat, relmat = list(
 solution(fit, term = "mrk(gen, M)", type = "random")   # genomic breeding values
 ```
 
+**Large genotype panels — low-rank GBLUP.** For many genotypes the `n × n`
+relationship and its eigendecomposition dominate the cost. `mrk(gen, M, rank = k)`
+fits a **rank-`k` PC-GBLUP**: only the top `k` principal components of the
+genomic relationship are kept, shrinking the design to `k` columns. With the
+optional **RSpectra** package installed, those components are computed straight
+from the markers (`svds`) — the full `n × n` matrix is *never formed* — which is
+much cheaper for large `n`. `predict()` and `solve_SNP()` reuse the same cached
+rotation, so scoring and marker back-solving stay fast:
+
+```r
+fit <- bbglr(yield ~ 1, random = ~ mrk(gen, M, rank = 200), data = dat, relmat = list(M = M))
+```
+
 Because the marker matrix is retained, a `mrk()` fit can **predict new
 genotypes** and **recover marker effects** — a `vm()` fit (below) cannot.
 

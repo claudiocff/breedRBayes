@@ -125,16 +125,83 @@ legendre_basis <- function(x, order, orthonormal = FALSE) {
 #' incidence-times-`PC` design has genotype effects recoverable as
 #' `tcrossprod(PC, B)`.
 #'
+#' Numerically-null directions (eigenvalue below `tol`) are dropped: they carry
+#' no genetic variance, so an all-zero `PC` column would only enlarge the design
+#' without changing the fit. If `rank` is supplied, only the top `rank`
+#' eigenvectors are kept (a low-rank / principal-component GBLUP approximation).
+#'
 #' @param K Symmetric relationship / covariance matrix (row/col names = levels).
-#' @param tol Numeric tolerance below which eigenvalues are floored to 0.
-#' @return A list with `PC` (the rotation, `nLevel x nLevel`) and `levels`
-#'   (row/column names of `K`).
+#' @param tol Numeric tolerance below which eigenvalues are treated as zero.
+#' @param rank Optional integer; keep only the top `rank` eigenvectors. `NA`
+#'   (default) keeps every non-null direction (exact).
+#' @return A list with `PC` (the rotation, `nLevel x rank`), `vectors` and
+#'   `values` (the retained eigenpairs) and `levels` (row/column names of `K`).
 #' @keywords internal
-.pc_rotation <- function(K, tol = 1e-8) {
-  evd <- eigen(K, symmetric = TRUE)
+.pc_rotation <- function(K, tol = 1e-8, rank = NA_integer_) {
+  evd  <- eigen(K, symmetric = TRUE)
   vals <- evd$values
+  vecs <- evd$vectors
+  if (!is.na(rank) && rank < length(vals)) {           # optional low-rank truncation
+    keep <- seq_len(max(1L, as.integer(rank)))
+    vals <- vals[keep]; vecs <- vecs[, keep, drop = FALSE]
+  }
   vals[vals < tol] <- 0
-  PC <- sweep(evd$vectors, MARGIN = 2, STATS = sqrt(vals), FUN = "*")
-  rownames(PC) <- rownames(K)
-  list(PC = PC, levels = rownames(K))
+  drop <- vals <= 0                                    # exact: null directions carry no variance
+  if (all(drop)) drop[which.max(vals)] <- FALSE        # always keep at least one column
+  vals <- vals[!drop]; vecs <- vecs[, !drop, drop = FALSE]
+  PC <- sweep(vecs, MARGIN = 2, STATS = sqrt(vals), FUN = "*")
+  rownames(PC) <- rownames(K); rownames(vecs) <- rownames(K)
+  list(PC = PC, vectors = vecs, values = vals, levels = rownames(K))
+}
+
+#' GBLUP principal-component rotation built directly from a marker matrix
+#'
+#' Computes the same rotation as `.pc_rotation()` applied to the VanRaden genomic
+#' relationship `G = Mc Mc'/cc + ridge`, but works from the centred markers `Mc`
+#' so it can (a) avoid ever forming the `n x n` matrix `G` and (b) return the
+#' eigenpairs of `Mc Mc'` for later reuse by the marker back-solve.
+#'
+#' When a low `rank` is requested and \pkg{RSpectra} is available, the top
+#' singular vectors of `Mc` are computed directly (`svds`), so neither `G` nor
+#' `Mc Mc'` is materialised. Otherwise `Mc Mc'` is formed and eigendecomposed.
+#' The tiny diagonal ridge (`1e-6 * mean(diag(G))`) that keeps `G`
+#' positive-definite is applied through the eigenvalues.
+#'
+#' @param Mc Column-centred marker matrix (`n` genotypes x `p` markers), row
+#'   names = genotype IDs.
+#' @param cc VanRaden scaling `2 * sum(p_j q_j)`.
+#' @param rank Optional integer; keep only the top `rank` directions.
+#' @param tol Eigenvalue tolerance for dropping null directions.
+#' @return A list with `PC` (rotation `n x r`), `vectors` (eigenvectors of
+#'   `Mc Mc'`), `evals_MM` (its eigenvalues) and `mean_diag_MM`
+#'   (`mean(diag(Mc Mc'))`, needed to reproduce the back-solve ridge).
+#' @keywords internal
+.gblup_rotation <- function(Mc, cc, rank = NA_integer_, tol = 1e-8) {
+  n <- nrow(Mc)
+  mean_diag_MM <- mean(rowSums(Mc^2))                  # = mean(diag(Mc Mc')), cheap
+  ridge <- 1e-6 * mean_diag_MM / cc                    # == 1e-6 * mean(diag(G))
+  trunc <- !is.na(rank) && rank < n
+  if (trunc && requireNamespace("RSpectra", quietly = TRUE)) {
+    k  <- max(1L, min(as.integer(rank), n - 1L))       # RSpectra needs k < n
+    sv <- RSpectra::svds(Mc, k)                         # top-k SVD of Mc, no G / Mc Mc' formed
+    V  <- sv$u                                          # left singular vecs = eigenvecs of Mc Mc'
+    lambda <- sv$d^2                                    # eigenvalues of Mc Mc'
+  } else {
+    MM <- tcrossprod(Mc)                               # n x n (the only path that forms it)
+    ev <- eigen(MM, symmetric = TRUE)
+    V  <- ev$vectors
+    lambda <- pmax(ev$values, 0)
+    if (trunc) {
+      keep <- seq_len(min(as.integer(rank), n))
+      V <- V[, keep, drop = FALSE]; lambda <- lambda[keep]
+    }
+  }
+  gamma <- lambda / cc + ridge                         # eigenvalues of G = Mc Mc'/cc + ridge I
+  keep  <- gamma > tol
+  if (!any(keep)) keep[which.max(gamma)] <- TRUE
+  V <- V[, keep, drop = FALSE]; lambda <- lambda[keep]; gamma <- gamma[keep]
+  rownames(V) <- rownames(Mc)
+  PC <- sweep(V, MARGIN = 2, STATS = sqrt(gamma), FUN = "*")
+  rownames(PC) <- rownames(Mc)
+  list(PC = PC, vectors = V, evals_MM = lambda, mean_diag_MM = mean_diag_MM)
 }

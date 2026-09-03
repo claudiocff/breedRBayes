@@ -44,7 +44,7 @@
       K <- K[lev, lev, drop = FALSE]
       rot <- .pc_rotation(K)
       X <- .expand_rows(rot$PC, data[[comp$var]], lev)   # incidence %*% PC, as a row-gather
-      colnames(X) <- lev
+      colnames(X) <- if (ncol(X) == length(lev)) lev else paste0("PC", seq_len(ncol(X)))
       list(X = X, meta = list(kind = "vm", var = comp$var, relmat = comp$relmat,
                               levels = lev, method = "GBLUP", bmap = rot$PC))
     },
@@ -74,17 +74,19 @@
       method <- if (identical(comp$method, "auto")) {
         if (p >= n) "GBLUP" else "RRBLUP"          # markers >= genotypes -> GBLUP
       } else comp$method
+      gblup_rot <- NULL
       if (identical(method, "GBLUP")) {
-        G   <- tcrossprod(Mc) / cc                 # VanRaden G = Z Z' / (2 sum pq), mean diag ~ 1
-        # Guarantee a non-singular (positive-definite) G: adding a small ridge to
-        # the diagonal shifts every eigenvalue up by `ridge`, so the PSD Gram matrix
-        # ZZ' can never stay singular (handles duplicate genotypes / p = n / collinear markers).
-        ridge <- 1e-6 * mean(diag(G))
-        diag(G) <- diag(G) + ridge
-        rot <- .pc_rotation(G)
-        X   <- .expand_rows(rot$PC, data[[comp$var]], lev)   # incidence %*% PC, as a row-gather
-        colnames(X) <- lev
+        # VanRaden G = Mc Mc'/cc + ridge, fitted in its PC basis. Built straight
+        # from Mc (avoids forming the n x n G when a low rank is requested and
+        # RSpectra is available). A small ridge shifts every eigenvalue up so G is
+        # positive-definite (duplicate genotypes / p = n / collinear markers). The
+        # eigenpairs of Mc Mc' are cached for the marker back-solve (solve_SNP/predict).
+        rot  <- .gblup_rotation(Mc, cc, rank = comp$rank)
+        X    <- .expand_rows(rot$PC, data[[comp$var]], lev)  # incidence %*% PC, as a row-gather
+        colnames(X) <- if (ncol(X) == length(lev)) lev else paste0("PC", seq_len(ncol(X)))
         bmap <- rot$PC
+        gblup_rot <- list(vectors = rot$vectors, evals_MM = rot$evals_MM,
+                          mean_diag_MM = rot$mean_diag_MM)
       } else {
         Msc  <- Mc / sqrt(cc)                      # so var(Msc a) = G * sigma^2_a  (== GBLUP)
         X    <- .expand_rows(Msc, data[[comp$var]], lev)     # incidence %*% Msc, as a row-gather
@@ -92,10 +94,13 @@
         bmap <- Msc                                # per-genotype value = b %*% t(bmap)
       }
       message("mrk(", comp$var, "): ", n, " genotypes x ", p, " markers -> ",
-              method, if (identical(comp$method, "auto")) " (auto)" else "", ".")
+              method, if (identical(comp$method, "auto")) " (auto)" else "",
+              if (identical(method, "GBLUP") && ncol(bmap) < n)
+                paste0(" (rank ", ncol(bmap), ")") else "", ".")
       list(X = X, meta = list(kind = "mrk", var = comp$var, relmat = comp$relmat,
                               levels = lev, method = method, bmap = bmap,
-                              markers = colnames(Mc), center = center, c_scale = cc))
+                              markers = colnames(Mc), center = center, c_scale = cc,
+                              rank = comp$rank, gblup_rot = gblup_rot))
     },
     leg = {
       x <- as.numeric(data[[comp$var]])

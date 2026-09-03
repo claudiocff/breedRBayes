@@ -265,9 +265,23 @@ gebv <- function(fit, term = NULL, prob = 0.95) {
     Mc <- sweep(M[ids, mk, drop = FALSE], 2L, gc$center[mk], "-")
     Mc[is.na(Mc)] <- 0                                # same mean-imputation as fitting
   }
-  MM   <- tcrossprod(Mc)
-  Minv <- solve(MM + diag(1e-8 * mean(diag(MM)), nrow(MM)))   # tiny ridge for stability
-  draws <- U %*% (Minv %*% Mc)
+  rot <- gc$gblup_rot
+  if (!is.null(rot)) {
+    # Reuse the cached fit-time eigendecomposition of Mc Mc' — no re-inversion.
+    # b = Mc' (Mc Mc' + eps I)^{-1} u, and each u lies in span(V) (u = PC b_brr),
+    # so only the retained eigenpairs contribute:
+    #   (Mc Mc' + eps I)^{-1} u = V diag(1/(lambda + eps)) V' u.
+    # (Directions in the left-null space of Mc drop out since V' Mc = 0 there.)
+    V    <- rot$vectors[ids, , drop = FALSE]          # eigenvectors of Mc Mc', rows = genotypes
+    eps  <- 1e-8 * rot$mean_diag_MM                   # == 1e-8 * mean(diag(Mc Mc')) used before
+    VtMc <- crossprod(V, Mc)                          # r x p  (V' Mc)
+    draws <- (U %*% V) %*% (VtMc / (rot$evals_MM + eps))   # row-scale V'Mc by 1/(lambda+eps)
+  } else {
+    # vm() fit (no cached rotation): fall back to a direct solve.
+    MM   <- tcrossprod(Mc)
+    Minv <- solve(MM + diag(1e-8 * mean(diag(MM)), nrow(MM)))   # tiny ridge for stability
+    draws <- U %*% (Minv %*% Mc)
+  }
   colnames(draws) <- colnames(Mc)
   attr(draws, "n_per_chain") <- vapply(sol_list, nrow, integer(1))
   draws
