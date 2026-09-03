@@ -10,7 +10,9 @@ heritability(fit, genetic = NULL, denominator = NULL, prob = 0.95)
 \item{fit}{A \code{breedRB_fit}.}
 
 \item{genetic}{Character vector of genetic term identifiers (label or key)
-forming the numerator. Defaults to the \code{vm()} term(s).}
+forming the numerator. Defaults to the \code{vm()} term(s). A single
+random-regression interaction term triggers the per-coefficient breakdown
+described above.}
 
 \item{denominator}{Character vector of term identifiers summed in the
 denominator alongside \code{varE}. Defaults to all random terms.}
@@ -25,6 +27,16 @@ A list of class \code{breedRB_h2}: \code{summary} (mean/median/sd/CI) and
 Computes narrow-sense (genomic) heritability for every MCMC draw, returning the
 full posterior distribution rather than a single point estimate:
 \deqn{h^2 = \sigma^2_{genetic} / (\sigma^2_{genetic} + \sum \sigma^2_{other} + \sigma^2_e).}
+}
+\details{
+For a \strong{random regression}, passing a single \verb{grouping x leg()} interaction
+term as \code{genetic} (e.g. \code{heritability(fit, genetic = "gen:leg(x, 4)")})
+returns the heritability of \strong{each reaction-norm coefficient} separately —
+the intercept and every Legendre degree — as
+\eqn{h^2_j = K_{jj} / (K_{jj} + \sigma^2_e)}, using the realised per-coefficient
+variances \eqn{K_{jj}} (see \code{\link[=rr_gradient]{rr_gradient()}} / \code{\link[=varcomp]{varcomp()}}); this recovers the
+individual coefficient heritabilities that the single shared \pkg{BGLR}
+interaction component hides.
 }
 \examples{
 \donttest{ h2 <- heritability(fit); h2$summary; hist(h2$draws) }

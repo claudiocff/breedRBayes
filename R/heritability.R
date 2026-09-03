@@ -20,6 +20,43 @@
        paste(labels, collapse = ", "), call. = FALSE)
 }
 
+#' Per-coefficient heritability of a random-regression term
+#'
+#' For a `grouping x leg()` reaction-norm term, returns the heritability of each
+#' reaction-norm coefficient separately (intercept and every Legendre degree),
+#' \eqn{h^2_j = K_{jj} / (K_{jj} + \sigma^2_e)}, where \eqn{K_{jj}} is the
+#' across-genotype variance of coefficient \eqn{j} (the realised diagonal of the
+#' coefficient (co)variance matrix, computed per MCMC draw as in [rr_gradient()])
+#' and \eqn{\sigma^2_e} the residual variance. This exposes the individual
+#' per-coefficient heritabilities even though \pkg{BGLR} fits a single shared
+#' variance component for the whole `leg()` interaction.
+#' @keywords internal
+.rr_coef_h2 <- function(fit, term, prob = 0.95) {
+  cd   <- .rr_coef_draws(fit, term)
+  key  <- .resolve_term(fit, term)
+  rr   <- .rr_leg_parts(fit$meta[[key]])
+  ikey <- .rr_intercept_key(fit, rr$gc)
+  q    <- cd$q
+  labs <- c(fit$meta[[ikey]]$label,
+            if (q == 1L) fit$meta[[key]]$label
+            else paste0(fit$meta[[key]]$label, ":deg", seq_len(q)))
+  nD   <- nrow(cd$A)
+  varE <- .varE_draws(fit)
+  if (length(varE) != nD) {
+    ve   <- varcomp(fit)
+    varE <- rep(ve$mean[ve$term == "varE"], nD)      # fall back to posterior mean
+  }
+  # per-draw across-genotype variance of each coefficient (intercept, then slopes)
+  Vg <- cbind(apply(cd$A, 1L, stats::var),
+              vapply(cd$B, function(m) apply(m, 1L, stats::var), numeric(nD)))
+  h2 <- Vg / (Vg + varE)
+  colnames(h2) <- labs
+  summ <- do.call(rbind, lapply(seq_along(labs), function(j)
+    cbind(data.frame(quantity = paste0("h2(", labs[j], ")")),
+          .post_summary(h2[, j], prob))))
+  structure(list(summary = summ, draws = h2), class = "breedRB_h2")
+}
+
 #' Keys of the random terms that carry a genomic (`vm` or `mrk`) component
 #' @keywords internal
 .vm_keys <- function(fit) {
@@ -34,9 +71,20 @@
 #' full posterior distribution rather than a single point estimate:
 #' \deqn{h^2 = \sigma^2_{genetic} / (\sigma^2_{genetic} + \sum \sigma^2_{other} + \sigma^2_e).}
 #'
+#' For a **random regression**, passing a single `grouping x leg()` interaction
+#' term as `genetic` (e.g. `heritability(fit, genetic = "gen:leg(x, 4)")`)
+#' returns the heritability of **each reaction-norm coefficient** separately —
+#' the intercept and every Legendre degree — as
+#' \eqn{h^2_j = K_{jj} / (K_{jj} + \sigma^2_e)}, using the realised per-coefficient
+#' variances \eqn{K_{jj}} (see [rr_gradient()] / [varcomp()]); this recovers the
+#' individual coefficient heritabilities that the single shared \pkg{BGLR}
+#' interaction component hides.
+#'
 #' @param fit A `breedRB_fit`.
 #' @param genetic Character vector of genetic term identifiers (label or key)
-#'   forming the numerator. Defaults to the `vm()` term(s).
+#'   forming the numerator. Defaults to the `vm()` term(s). A single
+#'   random-regression interaction term triggers the per-coefficient breakdown
+#'   described above.
 #' @param denominator Character vector of term identifiers summed in the
 #'   denominator alongside `varE`. Defaults to all random terms.
 #' @param prob Central credible-interval mass (default 0.95).
@@ -61,6 +109,13 @@ heritability <- function(fit, genetic = NULL, denominator = NULL, prob = 0.95) {
            call. = FALSE)
     }
   }
+  # A single random-regression interaction term -> per-coefficient heritability
+  # (intercept + each Legendre degree), from the realised coefficient variances.
+  if (length(genetic) == 1L) {
+    gk <- .resolve_term(fit, genetic)
+    if (!is.null(.rr_leg_parts(fit$meta[[gk]]))) return(.rr_coef_h2(fit, gk, prob))
+  }
+
   gkeys <- vapply(genetic, .resolve_term, character(1), fit = fit)
   vc <- .read_varchains(fit)
   pooled <- do.call(rbind, vc)

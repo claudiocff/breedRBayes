@@ -579,4 +579,19 @@ test_that("model_fit() breaks out reliability per Legendre degree for a q>1 RR",
   amean <- vapply(split(rn_ph$value, rn_ph$id), mean, numeric(1))
   expect_equal(unname(gx$adaptability[match(names(amean), gx$id)]),
                unname(amean), tolerance = 1e-8)
+
+  # heritability() of a single RR interaction -> per-coefficient h2 rows
+  h2 <- heritability(fit, genetic = "gen:leg(x, 2)")
+  expect_s3_class(h2, "breedRB_h2")
+  expect_equal(nrow(h2$summary), 3L)                       # intercept + 2 degrees
+  expect_true(all(c("h2(gen)", "h2(gen:leg(x, 2):deg1)",
+                    "h2(gen:leg(x, 2):deg2)") %in% h2$summary$quantity))
+  expect_true(all(h2$summary$mean > 0 & h2$summary$mean < 1))
+  # whitespace-insensitive too
+  expect_equal(heritability(fit, genetic = "gen:leg(x,2)")$summary$mean,
+               h2$summary$mean, tolerance = 1e-12)
+  # per-coefficient h2 == K_jj / (K_jj + varE) from rr_gradient()/varcomp()
+  vE <- vc$mean[vc$term == "varE"]
+  expect_equal(unname(colMeans(h2$draws)),
+               unname(diag(g$K) / (diag(g$K) + vE)), tolerance = 0.02)
 })
