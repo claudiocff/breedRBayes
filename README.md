@@ -17,7 +17,10 @@ distributions, genetic correlations, and Markov-chain convergence diagnostics.
     `predict()` / `predict_pr()` for new genotypes, `solve_SNP()` for effects),
     or a ready-made relationship matrix via `vm(gen, G)`.
   - **Random regression / reaction norm** — `leg(x, order)` / `rr(x, order)`
-    Legendre bases.
+    Legendre bases, with `reaction_norm()` curves, `model_fit()` goodness-of-fit,
+    intercept–slope covariance in `varcomp()`, and `rr_gradient()` across-gradient
+    genetic correlation / heritability / reliability / selection-probability
+    surfaces.
   - **Multi-trait** — `cbind(t1, t2, ...) ~ ...` with unstructured genetic
     covariance and genetic correlations.
   - **Factor-analytic** — `fa(gen, k)` / `rrc(gen, k)` reduced-rank genetic
@@ -283,13 +286,78 @@ pr(fit, term = "gen", type = "random", pair = TRUE)   # columns: A, B, prob = P(
 
 ### Random regression (reaction norm)
 
+A random regression models each genotype's response as a smooth curve over an
+environmental gradient `x` (a **reaction norm**): a genotype-specific intercept
+plus one or more Legendre slopes. The intercept is the grouping main effect and
+the slopes are its `leg(x, q)` interaction — the grouping may be **genomic**
+(`mrk(gen, M)` / `vm(gen, G)`) or a **plain random factor** (`gen`, no
+relationship matrix). A fixed `leg(x, q)` on the left describes the population
+reaction norm:
+
 ```r
 fit_rr <- bbglr(
-  yield ~ 1 + env,
-  random = ~ vm(gen, G) + leg(env_index, 2):vm(gen, G),
-  data = dat, relmat = list(G = G),
-  nIter = 6000, burnIn = 2000
+  yield ~ leg(x, 1),                        # population (fixed) reaction norm
+  random = ~ gen + gen:leg(x, 1) + env:rep, # per-genotype intercept + slope
+  residual = ~ units, data = dat,
+  control = bbglr_control(nIter = 6000, burnIn = 2000, nChains = 2)
 )
+# genomic version:  random = ~ mrk(gen, M) + mrk(gen, M):leg(x, 1)
+```
+
+**Coefficients.** `solution()` returns the per-genotype intercepts (from the main
+effect) and slopes (from the interaction; one column per Legendre degree,
+`deg1` = linear, `deg2` = quadratic, …). For a genomic fit `solve_SNP()` gives
+the marker effects per degree, and `predict()` scores new genotypes:
+
+```r
+solution(fit_rr, term = "gen")           # per-genotype intercepts
+solution(fit_rr, term = "gen:leg(x, 1)") # per-genotype slopes (deg1)
+```
+
+**Curves.** `reaction_norm()` evaluates and plots each genotype's fitted curve
+`v_i(x) = â_i + Σ_j b̂_{i,j} L_j(x)` across the gradient:
+
+```r
+rn <- reaction_norm(fit_rr, term = "gen:leg(x, 1)")   # one line per genotype
+# add_fixed_reg = FALSE -> genotype deviations; leg_basis = FALSE -> covariate axis
+```
+
+**Intercept–slope covariance.** `varcomp()` reports the reaction-norm variance
+components **and** the across-genotype intercept–slope covariance as extra
+`cov(...)` rows (estimated from the posterior coefficient draws, so it is
+non-zero even though the two terms are fitted with independent priors):
+
+```r
+varcomp(fit_rr)   # ... plus e.g. cov(gen, gen:leg(x, 1))
+```
+
+**Goodness of fit.** `model_fit()` bundles the diagnostics for judging the fit —
+observed-vs-fitted R², RMSE, `DIC`/`pD`, residual variance and per-term BLUP
+reliability. Comparing the `DIC` of the reaction norm against a slope-free model
+shows whether the `gen:leg(x)` term is warranted:
+
+```r
+model_fit(fit_rr)                          # R2, RMSE, DIC, pD, reliability
+fitted(fit_rr); residuals(fit_rr)          # posterior-mean fit + residuals
+fit0 <- bbglr(yield ~ leg(x, 1), random = ~ gen + env:rep, data = dat)
+model_fit(fit_rr)$dic < model_fit(fit0)$dic  # is the slope worth it?
+```
+
+**Across-gradient analytics.** `rr_gradient()` summarises the reaction norm over
+the whole gradient, with heat-map / ribbon visualisations. With
+`Φ = (1, L_1(x), …, L_q(x))` and `K` the coefficient (co)variance matrix, it
+returns the genetic covariance surface `Φ K Φ'` and its correlation
+(`cov2cor`), heritability over the gradient, per-genotype reliability, and the
+posterior probability that each genotype ranks in the top fraction **at each
+gradient point**:
+
+```r
+g <- rr_gradient(fit_rr, term = "gen:leg(x, 1)", threshold = 0.20)
+g$gcor          # across-gradient genetic correlation matrix (how rankings carry over)
+g$h2            # heritability along the gradient (posterior mean + CI)
+g$reliability   # per-genotype reliability, genotype x gradient
+g$prob_top      # P(top 20%) at each gradient point, genotype x gradient
+g$plots         # ggplots: $cor, $h2, $reliability, $prob
 ```
 
 ### Multi-trait and genetic correlations
@@ -324,7 +392,8 @@ scripts live in `inst/scripts/`.
 ## Documentation
 
 Every exported function is documented; see `?bbglr`, `?varcomp`,
-`?heritability`, `?mcmc_diag` and `?solution`. A full PDF reference
+`?heritability`, `?mcmc_diag` and `?solution`, and — for random regression —
+`?reaction_norm`, `?model_fit` and `?rr_gradient`. A full PDF reference
 manual (`breedRBayes-manual.pdf`) is included at the repository root.
 
 ## License

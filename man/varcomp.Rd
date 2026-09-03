@@ -15,12 +15,18 @@ varcomp(fit, prob = 0.95, draws = FALSE)
 }
 \value{
 A data frame of per-component summaries (\code{term}, \code{mean}, \code{median},
-\code{sd}, \code{lower}, \code{upper}), with the pooled draws attached as attribute
-\code{"draws"} when \code{draws = TRUE}.
+\code{sd}, \code{lower}, \code{upper}) — the random-term variances, \code{varE}, and, for a
+random regression, the reaction-norm \code{cov(intercept, slope)} rows — with the
+pooled variance draws attached as attribute \code{"draws"} when \code{draws = TRUE}
+(the draws matrix covers the variance components only).
 }
 \description{
 Returns the posterior distribution and summaries of every random-term variance
-and the residual variance, pooling all chains.
+and the residual variance, pooling all chains. For a \strong{random-regression}
+model the across-genotype intercept--slope (co)variance is appended as extra
+\code{cov(...)} rows: these are the realised coefficient covariances estimated from
+the posterior draws (see \code{\link[=rr_gradient]{rr_gradient()}}), reported even though the intercept
+and slope terms are fitted with independent priors.
 }
 \examples{
 \donttest{ varcomp(fit) }

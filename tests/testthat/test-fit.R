@@ -485,4 +485,34 @@ test_that("reaction_norm() works for a plain-factor (non-genomic) random regress
   fit0 <- bbglr(y ~ leg(x), random = ~ gen, residual = ~ units, data = dat,
                 nIter = 3000, burnIn = 1000, nChains = 1, verbose = FALSE)
   expect_lt(model_fit(fit)$dic, model_fit(fit0)$dic)
+
+  # ---- rr_gradient(): across-gradient analytics -----------------------------
+  g <- rr_gradient(fit, term = "gen:leg(x)", n_grid = 10L, threshold = 0.2,
+                   plot = FALSE)
+  expect_s3_class(g, "breedRB_rrgradient")
+  # correlation surface: symmetric, unit diagonal, in [-1, 1]
+  expect_equal(dim(g$gcor), c(10L, 10L))
+  expect_equal(unname(diag(g$gcor)), rep(1, 10L), tolerance = 1e-8)
+  expect_true(all(g$gcor >= -1 - 1e-8 & g$gcor <= 1 + 1e-8))
+  expect_equal(unname(g$gcor), unname(t(g$gcor)), tolerance = 1e-8)
+  # covariance surface = Phi K Phi' -> its diagonal is the genetic variance,
+  # so h2 = varg / (varg + varE) is a valid fraction in (0, 1)
+  expect_true(all(g$h2$mean > 0 & g$h2$mean < 1))
+  # K is the 2x2 (intercept, slope) coefficient (co)variance: symmetric, PSD,
+  # positive variances
+  expect_equal(dim(g$K), c(2L, 2L))
+  expect_equal(g$K[1, 2], g$K[2, 1], tolerance = 1e-12)
+  expect_true(all(diag(g$K) > 0))
+  expect_gte(min(eigen(g$K, symmetric = TRUE, only.values = TRUE)$values), -1e-8)
+  # reliability / probability are per-genotype x gradient, bounded to [0, 1]
+  expect_equal(dim(g$reliability), c(n_gen, 10L))
+  expect_equal(dim(g$prob_top),   c(n_gen, 10L))
+  expect_true(all(g$reliability >= 0 & g$reliability <= 1))
+  expect_true(all(g$prob_top    >= 0 & g$prob_top    <= 1))
+  # each gradient column: exactly k = round(0.2*n) genotypes expected in the top
+  # (probabilities sum to k across genotypes at every point)
+  expect_equal(unname(colSums(g$prob_top)), rep(round(0.2 * n_gen), 10L),
+               tolerance = 0.05)
+  expect_named(g$plots, c("cor", "h2", "reliability", "prob"))
+  expect_true(all(vapply(g$plots, ggplot2::is.ggplot, logical(1))))
 })
