@@ -73,19 +73,23 @@ utils::globalVariables(c("x1", "x2", "gcor", "h2", "lower", "upper",
        genomic = rr$genomic, A = A[, ids, drop = FALSE], B = B)
 }
 
-#' Posterior summaries of the reaction-norm coefficient covariances
+#' Posterior summaries of the reaction-norm coefficient (co)variances
 #'
 #' For every random-regression term in the fit (a grouping x `leg()` interaction
 #' with a matching intercept term), computes the posterior distribution of the
-#' off-diagonal entries of the across-genotype coefficient (co)variance matrix
-#' \eqn{K} — the intercept--slope covariance(s), and slope--slope covariances when
-#' `q > 1`. Each covariance is computed per MCMC draw as `cov()` of the
-#' per-genotype coefficients in that draw (the same realised covariance used by
-#' [rr_gradient()]) and then summarised, so `~ gen + gen:leg(x)` gets a genuine
-#' intercept--slope covariance even though its two terms have independent priors.
+#' entries of the across-genotype coefficient (co)variance matrix \eqn{K}: the
+#' per-coefficient **variances** `var(...)` (intercept and each Legendre degree —
+#' the diagonal) and the intercept--slope / slope--slope **covariances**
+#' `cov(...)` (the off-diagonal). Each entry is computed per MCMC draw as `cov()`
+#' of the per-genotype coefficients in that draw (the same realised (co)variance
+#' used by [rr_gradient()]) and then summarised. This exposes the individual
+#' per-degree variances even though \pkg{BGLR} fits a **single shared** variance
+#' component for the whole `leg()` interaction term, and gives a genuine
+#' intercept--slope covariance even though the terms have independent priors.
 #' @return A data frame with the same columns as [varcomp()]
-#'   (`term`, `mean`, `median`, `sd`, `lower`, `upper`), one row per covariance,
-#'   or `NULL` if the model has no random regression.
+#'   (`term`, `mean`, `median`, `sd`, `lower`, `upper`) — the `var(...)` rows
+#'   first, then the `cov(...)` rows — or `NULL` if the model has no random
+#'   regression.
 #' @keywords internal
 .rr_cov_summaries <- function(fit, prob = 0.95) {
   rows <- list()
@@ -96,20 +100,28 @@ utils::globalVariables(c("x1", "x2", "gcor", "h2", "lower", "upper",
     if (is.null(ikey)) next
     cd <- tryCatch(.rr_coef_draws(fit, key), error = function(e) NULL)
     if (is.null(cd)) next
-    q <- cd$q; G <- length(cd$ids); nD <- nrow(cd$A)
+    q <- cd$q; G <- length(cd$ids); nD <- nrow(cd$A); p1 <- q + 1L
     coef_lab <- c(fit$meta[[ikey]]$label,
                   if (q == 1L) fit$meta[[key]]$label
                   else paste0(fit$meta[[key]]$label, ":deg", seq_len(q)))
-    pairs <- utils::combn(q + 1L, 2L)
-    covd  <- matrix(0, nD, ncol(pairs))
+    pairs  <- if (p1 >= 2L) utils::combn(p1, 2L) else matrix(integer(0), 2L, 0L)
+    diag_d <- matrix(0, nD, p1)                       # per-draw variances (diagonal of K)
+    off_d  <- matrix(0, nD, ncol(pairs))              # per-draw covariances (off-diagonal)
     for (t in seq_len(nD)) {
       Ct <- cbind(cd$A[t, ], vapply(cd$B, function(m) m[t, ], numeric(G)))
-      covd[t, ] <- stats::cov(Ct)[cbind(pairs[1L, ], pairs[2L, ])]
+      Kt <- stats::cov(Ct)
+      diag_d[t, ] <- diag(Kt)
+      if (ncol(pairs)) off_d[t, ] <- Kt[cbind(pairs[1L, ], pairs[2L, ])]
+    }
+    for (i in seq_len(p1)) {
+      rows[[length(rows) + 1L]] <-
+        cbind(data.frame(term = paste0("var(", coef_lab[i], ")")),
+              .post_summary(diag_d[, i], prob))
     }
     for (p in seq_len(ncol(pairs))) {
       nm <- paste0("cov(", coef_lab[pairs[1L, p]], ", ", coef_lab[pairs[2L, p]], ")")
       rows[[length(rows) + 1L]] <- cbind(data.frame(term = nm),
-                                         .post_summary(covd[, p], prob))
+                                         .post_summary(off_d[, p], prob))
     }
   }
   if (!length(rows)) return(NULL)

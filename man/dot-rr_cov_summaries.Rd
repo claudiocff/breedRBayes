@@ -2,23 +2,27 @@
 % Please edit documentation in R/rr_gradient.R
 \name{.rr_cov_summaries}
 \alias{.rr_cov_summaries}
-\title{Posterior summaries of the reaction-norm coefficient covariances}
+\title{Posterior summaries of the reaction-norm coefficient (co)variances}
 \usage{
 .rr_cov_summaries(fit, prob = 0.95)
 }
 \value{
 A data frame with the same columns as \code{\link[=varcomp]{varcomp()}}
-(\code{term}, \code{mean}, \code{median}, \code{sd}, \code{lower}, \code{upper}), one row per covariance,
-or \code{NULL} if the model has no random regression.
+(\code{term}, \code{mean}, \code{median}, \code{sd}, \code{lower}, \code{upper}) — the \code{var(...)} rows
+first, then the \code{cov(...)} rows — or \code{NULL} if the model has no random
+regression.
 }
 \description{
 For every random-regression term in the fit (a grouping x \code{leg()} interaction
 with a matching intercept term), computes the posterior distribution of the
-off-diagonal entries of the across-genotype coefficient (co)variance matrix
-\eqn{K} — the intercept--slope covariance(s), and slope--slope covariances when
-\code{q > 1}. Each covariance is computed per MCMC draw as \code{cov()} of the
-per-genotype coefficients in that draw (the same realised covariance used by
-\code{\link[=rr_gradient]{rr_gradient()}}) and then summarised, so \code{~ gen + gen:leg(x)} gets a genuine
-intercept--slope covariance even though its two terms have independent priors.
+entries of the across-genotype coefficient (co)variance matrix \eqn{K}: the
+per-coefficient \strong{variances} \code{var(...)} (intercept and each Legendre degree —
+the diagonal) and the intercept--slope / slope--slope \strong{covariances}
+\code{cov(...)} (the off-diagonal). Each entry is computed per MCMC draw as \code{cov()}
+of the per-genotype coefficients in that draw (the same realised (co)variance
+used by \code{\link[=rr_gradient]{rr_gradient()}}) and then summarised. This exposes the individual
+per-degree variances even though \pkg{BGLR} fits a \strong{single shared} variance
+component for the whole \code{leg()} interaction term, and gives a genuine
+intercept--slope covariance even though the terms have independent priors.
 }
 \keyword{internal}

@@ -543,4 +543,15 @@ test_that("model_fit() breaks out reliability per Legendre degree for a q>1 RR",
   # each degree row counts exactly the genotypes (not genotypes x degrees)
   degrows <- mf$reliability[grepl(":deg[0-9]+$", mf$reliability$term), ]
   expect_true(all(degrows$n_effects == n_gen))
+
+  # varcomp() exposes the per-coefficient variances (diagonal of K) as var() rows
+  # -- not visible from the single shared BGLR interaction component -- plus the
+  # covariance off-diagonal, and they equal the K reported by rr_gradient()
+  vc <- varcomp(fit)
+  expect_true(all(c("var(gen)", "var(gen:leg(x, 2):deg1)",
+                    "var(gen:leg(x, 2):deg2)") %in% vc$term))
+  expect_true("cov(gen:leg(x, 2):deg1, gen:leg(x, 2):deg2)" %in% vc$term)
+  g <- rr_gradient(fit, term = "gen:leg(x, 2)", n_grid = 5L, plot = FALSE)
+  vrows <- vc$mean[grepl("^var\\(", vc$term)]
+  expect_equal(vrows, diag(g$K), tolerance = 1e-6)
 })
