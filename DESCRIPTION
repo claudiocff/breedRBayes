@@ -21,14 +21,8 @@ Imports:
     RhpcBLASctl,
     stats,
     utils,
-    dplyr,
-    tidyr,
-    reshape2,
-    tibble,
     ggplot2
 Suggests:
-    ggrepel,
-    viridis,
     SpATS,
     EnvRtype,
     parallel,

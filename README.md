@@ -24,8 +24,6 @@ distributions, genetic correlations, and Markov-chain convergence diagnostics.
   full posterior draws, not just point estimates.
 - **Diagnostics** — `mcmc_diag()` (R-hat, effective sample size, Geweke) plus
   trace and posterior-density plots.
-- **Finlay–Wilkinson** two-step reaction-norm analysis (`FW_bglr()`) built on
-  top of the same engine, with a value-added probability-of-superiority layer.
 
 ## Installation
 
@@ -34,8 +32,7 @@ distributions, genetic correlations, and Markov-chain convergence diagnostics.
 remotes::install_github("claudiocff/breedRBayes")
 ```
 
-`breedRBayes` depends on `BGLR`, `coda`, `RhpcBLASctl`, `dplyr`, `tidyr`,
-`reshape2`, `tibble` and `ggplot2`.
+`breedRBayes` depends on `BGLR`, `coda`, `RhpcBLASctl` and `ggplot2`.
 
 ## The formula interface
 
@@ -133,19 +130,6 @@ fit_fa <- bbglr(
 )
 ```
 
-## Finlay–Wilkinson reaction norm
-
-`FW_bglr()` runs the two-step Finlay–Wilkinson analysis (estimate the
-environment index, then a genotype-specific intercept + slope random
-regression) using `bbglr()` as the engine:
-
-```r
-fw  <- FW_bglr(dat, gen = "gen", env = "env", trait = "yield",
-               kinship.matrix = G, nIter = 3000, burnIn = 1000, order = 1)
-ext <- extr_outs_bglr(fw, gen = "gen")   # posterior chains, variances, G params
-ps  <- prob_sup_bglr(ext, int = 0.2)     # probability-of-superiority summaries
-```
-
 ## Example data
 
 Example datasets ship in `inst/extdata/` (soybean phenotypes, a genomic
@@ -156,7 +140,7 @@ scripts live in `inst/scripts/`.
 ## Documentation
 
 Every exported function is documented; see `?bbglr`, `?varcomp`,
-`?heritability`, `?mcmc_diag`, `?solution` and `?FW_bglr`. A full PDF reference
+`?heritability`, `?mcmc_diag` and `?solution`. A full PDF reference
 manual (`breedRBayes-manual.pdf`) is included at the repository root.
 
 ## License
