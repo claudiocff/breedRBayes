@@ -1,18 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1040" role="img" aria-labelledby="title desc">
   <title id="title">breedRBayes hex logo</title>
-  <desc id="desc">Minimalist blue and white hex sticker logo for breedRBayes</desc>
+  <desc id="desc">Minimalist scientific blue and white hex sticker logo for breedRBayes</desc>
 
   <polygon points="600,20 1070,280 1070,760 600,1020 130,760 130,280" fill="#0B4FAF"/>
-  <polygon points="600,95 1005,320 1005,720 600,945 195,720 195,320" fill="#FFFFFF"/>
+  <polygon points="600,92 1008,318 1008,722 600,948 192,722 192,318" fill="#FFFFFF"/>
 
-  <path d="M430 380 L600 300 L770 380 L680 560 L520 560 Z" fill="none" stroke="#0B4FAF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="430" cy="380" r="34" fill="#0B4FAF"/>
-  <circle cx="600" cy="300" r="34" fill="#0B4FAF"/>
-  <circle cx="770" cy="380" r="34" fill="#0B4FAF"/>
-  <circle cx="680" cy="560" r="34" fill="#0B4FAF"/>
-  <circle cx="520" cy="560" r="34" fill="#0B4FAF"/>
+  <!-- Scientific motif: stylized Bayesian network + posterior curves -->
+  <line x1="600" y1="300" x2="600" y2="640" stroke="#0B4FAF" stroke-width="16" stroke-linecap="round"/>
 
-  <path d="M470 500 C540 445, 660 445, 730 500" fill="none" stroke="#0B4FAF" stroke-width="20" stroke-linecap="round"/>
+  <path d="M470 350 C560 300, 640 300, 730 350" fill="none" stroke="#0B4FAF" stroke-width="16" stroke-linecap="round"/>
+  <path d="M470 480 C560 540, 640 540, 730 480" fill="none" stroke="#0B4FAF" stroke-width="16" stroke-linecap="round"/>
 
-  <text x="600" y="830" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="102" font-weight="700" fill="#0B4FAF" letter-spacing="1">breedRBayes</text>
+  <line x1="600" y1="300" x2="470" y2="350" stroke="#0B4FAF" stroke-width="10" stroke-linecap="round"/>
+  <line x1="600" y1="300" x2="730" y2="350" stroke="#0B4FAF" stroke-width="10" stroke-linecap="round"/>
+  <line x1="600" y1="640" x2="470" y2="480" stroke="#0B4FAF" stroke-width="10" stroke-linecap="round"/>
+  <line x1="600" y1="640" x2="730" y2="480" stroke="#0B4FAF" stroke-width="10" stroke-linecap="round"/>
+
+  <circle cx="600" cy="300" r="24" fill="#0B4FAF"/>
+  <circle cx="470" cy="350" r="20" fill="#0B4FAF"/>
+  <circle cx="730" cy="350" r="20" fill="#0B4FAF"/>
+  <circle cx="470" cy="480" r="20" fill="#0B4FAF"/>
+  <circle cx="730" cy="480" r="20" fill="#0B4FAF"/>
+  <circle cx="600" cy="640" r="24" fill="#0B4FAF"/>
+
+  <text x="600" y="835" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="76" font-weight="700" fill="#0B4FAF" letter-spacing="0.6">breedRBayes</text>
 </svg>
