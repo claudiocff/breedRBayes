@@ -99,7 +99,6 @@ solution(fit, term = "env", type = "fixed")    # fixed-effect estimates
 ```
 
 `type` is optional and, when given, is checked against the term's actual role.
-(`gebv()` is deprecated — it now calls `solution()` internally.)
 
 ### Random regression (reaction norm)
 
