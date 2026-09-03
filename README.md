@@ -57,29 +57,49 @@ Special functions inside the formulas:
 | `a:b`                  | interaction (e.g. `env:vm(gen, G)` for GxE)          |
 | `cbind(t1, t2) ~ ...`  | stack traits → multi-trait model                     |
 
-Relationship matrices are supplied through `relmat = list(G = K)`.
+Marker matrices (`mrk()`) and relationship/kernel matrices (`vm()`) are both
+supplied through `relmat = list(M = ..., G = ...)`.
 
 ## Quick start
 
 ```r
 library(breedRBayes)
 
-G   <- readRDS(system.file("extdata", "kinship.matrix.rds", package = "breedRBayes"))
-dat <- read.csv(system.file("extdata", "data_soy.csv",      package = "breedRBayes"))
+## A small genomic dataset: 150 genotypes x 500 markers, 130 of them phenotyped.
+set.seed(1)
+n <- 150; p <- 500
+M <- matrix(rbinom(n * p, 2, 0.3), n, p,
+            dimnames = list(paste0("G", 1:n), paste0("m", 1:p)))
+train <- paste0("G", 1:130)          # phenotyped genotypes
+newg  <- paste0("G", 131:150)        # genotyped but NOT phenotyped
 
-## --- GBLUP with two chains --------------------------------------------------
+g   <- scale(scale(M[train, ], scale = FALSE) %*% rnorm(p)) * 3   # true breeding values
+dat <- data.frame(gen = rep(train, each = 3))
+dat$yield <- g[dat$gen, 1] + rnorm(nrow(dat), 0, 3)
+
+## --- genomic model with two chains -----------------------------------------
+## mrk() takes the marker matrix directly and auto-selects GBLUP or RR-BLUP.
 fit <- bbglr(
-  yield ~ 1 + env,
-  random = ~ vm(gen, G),
+  yield ~ 1,
+  random = ~ mrk(gen, M),
   data   = dat,
-  relmat = list(G = G),
+  relmat = list(M = M[train, ]),
   nIter  = 6000, burnIn = 2000, nChains = 2
 )
 
-varcomp(fit)          # posterior variance components
-heritability(fit)     # h2 as a full posterior distribution
-mcmc_diag(fit, plot = TRUE)          # R-hat, ESS, Geweke + ggplot2 trace plots
-solution(fit, term = "gen")          # posterior genomic breeding values
+varcomp(fit)                          # posterior variance components
+heritability(fit)                     # h2 as a full posterior distribution
+mcmc_diag(fit, plot = TRUE)           # R-hat, ESS, Geweke + ggplot2 trace plots
+solution(fit, term = "mrk(gen, M)")   # posterior genomic breeding values
+
+## Probability each genotype ranks in the top 10% (Bayesian selection):
+pr(fit, term = "mrk(gen, M)", threshold = 0.10)
+
+## Predict the 20 genotyped-but-unphenotyped lines from their markers:
+predict(fit, M[newg, ], add_mu = TRUE)   # ID, prediction, sd, lower, upper
+
+## Marker effects (back-solved from a GBLUP fit, read directly from RR-BLUP):
+solve_SNP(fit)
 
 plot_trace(fit)       # chain trace plots
 plot_posterior(heritability(fit))
