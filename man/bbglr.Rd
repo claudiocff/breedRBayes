@@ -23,26 +23,29 @@ bbglr(
 \item{fixed}{Two-sided formula for the fixed/mean part, e.g. \code{yield ~ 1 + env}.
 Use \code{cbind(t1, t2) ~ ...} for a multi-trait model.}
 
-\item{random}{One-sided formula of random terms, e.g. \code{~ vm(gen, G)}. Special
-functions: \code{vm(f, K)} genomic effect with relationship matrix \code{K};
-\code{mrk(f, M, method)} genomic effect from a \strong{marker matrix} \code{M} that
-automatically fits GBLUP or RR-BLUP, whichever is cheaper (\code{method} is
+\item{random}{One-sided formula of random terms, e.g. \code{~ mrk(gen, M)}. Special
+functions: \code{mrk(f, M, method)} genomic effect from a \strong{marker matrix} \code{M}
+that automatically fits GBLUP or RR-BLUP, whichever is cheaper (\code{method} is
 \code{"auto"}, \code{"GBLUP"} or \code{"RRBLUP"}; \code{"auto"} picks GBLUP when markers >=
-genotypes, else RR-BLUP — the two are prediction-equivalent). Use
-\code{\link[=solve_SNP]{solve_SNP()}} to obtain marker effects. \code{leg(x, n)} / \code{rr(x, n)} random
-regression of order \code{n}; \code{fa(f, k)} / \code{rrc(f, k)} factor-analytic. Bare names
-are factors; \code{a:b} is an interaction.}
+genotypes, else RR-BLUP — the two are prediction-equivalent). A \code{mrk()} fit
+can score new genotypes with \code{\link[=predict.breedRB_fit]{predict.breedRB_fit()}} and recover marker
+effects with \code{\link[=solve_SNP]{solve_SNP()}}; it is the recommended genomic term. \code{vm(f, K)}
+effect of factor \code{f} with a supplied covariance matrix \code{K} — use it for a
+kernel you already have and cannot rebuild from markers (pedigree A-matrix,
+environmic kernel, externally-computed G, or any custom kernel). \code{leg(x, n)}
+/ \code{rr(x, n)} random regression of order \code{n}; \code{fa(f, k)} / \code{rrc(f, k)}
+factor-analytic. Bare names are factors; \code{a:b} is an interaction.}
 
 \item{residual}{One-sided residual formula. \code{NULL}/\code{~ units} = homogeneous;
 \code{~ dsum(~units | env)} = heterogeneous residual variances by \code{env}.}
 
 \item{data}{A data frame.}
 
-\item{relmat}{Named list of matrices referenced by \code{vm()} and \code{mrk()}. For
-\code{vm()} these are relationship / covariance matrices (K, not its inverse),
-with row/column names matching the factor levels. For \code{mrk()} the entry is a
-marker matrix with genotypes in rows (row names = genotype IDs) and markers
-in columns.}
+\item{relmat}{Named list of matrices referenced by \code{mrk()} and \code{vm()}. For
+\code{mrk()} the entry is a marker matrix with genotypes in rows (row names =
+genotype IDs) and markers in columns. For \code{vm()} the entry is a covariance /
+kernel matrix (K, not its inverse) — genomic, pedigree, environmic or any
+custom kernel — with row/column names matching the factor levels.}
 
 \item{nIter, burnIn, thin}{MCMC controls passed to BGLR.}
 

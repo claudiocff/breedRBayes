@@ -149,16 +149,25 @@ snp <- solve_SNP(fit)                     # no need to re-supply the marker matr
 head(snp[order(-abs(snp$effect)), ])      # largest-effect markers
 ```
 
-### `vm(gen, G)`: bring your own relationship matrix
+### `vm(f, K)`: bring your own relationship / kernel matrix
 
-Use `vm(gen, G)` when you already have a **relationship / kernel matrix** and not
-the raw markers — a pedigree numerator (A) matrix, a `G` computed elsewhere, or a
-custom covariance kernel. It fits the same GBLUP model as `mrk()` in its GBLUP
-mode, but since it holds no markers it cannot `predict()` new genotypes or
-`solve_SNP()`. For marker data, prefer `mrk()`.
+Use `vm(f, K)` when you already have a **covariance matrix** and not the raw
+markers. `K` can be any positive (semi-)definite kernel indexed by the levels of
+`f`:
+
+- a **pedigree** numerator relationship matrix (A),
+- an **environmic** kernel (environmental covariance between locations/years,
+  e.g. from `EnvRtype`),
+- a genomic `G` computed elsewhere (custom method / allele frequencies),
+- any other custom covariance kernel.
+
+It fits the same reaction-norm / GBLUP-style model as `mrk()` in its GBLUP mode,
+but since it holds no markers it cannot `predict()` new levels or `solve_SNP()`.
+For raw marker data, prefer `mrk()`.
 
 ```r
-fit <- bbglr(yield ~ 1 + env, random = ~ vm(gen, G), data = dat, relmat = list(G = G))
+fit <- bbglr(yield ~ 1 + env, random = ~ vm(gen, A), data = dat, relmat = list(A = A))  # pedigree
+fit <- bbglr(yield ~ 1,       random = ~ vm(env, W), data = dat, relmat = list(W = W))  # environmic
 ```
 
 ### Probability of selection

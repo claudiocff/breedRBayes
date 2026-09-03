@@ -7,23 +7,26 @@
 #'
 #' @param fixed Two-sided formula for the fixed/mean part, e.g. `yield ~ 1 + env`.
 #'   Use `cbind(t1, t2) ~ ...` for a multi-trait model.
-#' @param random One-sided formula of random terms, e.g. `~ vm(gen, G)`. Special
-#'   functions: `vm(f, K)` genomic effect with relationship matrix `K`;
-#'   `mrk(f, M, method)` genomic effect from a **marker matrix** `M` that
-#'   automatically fits GBLUP or RR-BLUP, whichever is cheaper (`method` is
+#' @param random One-sided formula of random terms, e.g. `~ mrk(gen, M)`. Special
+#'   functions: `mrk(f, M, method)` genomic effect from a **marker matrix** `M`
+#'   that automatically fits GBLUP or RR-BLUP, whichever is cheaper (`method` is
 #'   `"auto"`, `"GBLUP"` or `"RRBLUP"`; `"auto"` picks GBLUP when markers >=
-#'   genotypes, else RR-BLUP — the two are prediction-equivalent). Use
-#'   [solve_SNP()] to obtain marker effects. `leg(x, n)` / `rr(x, n)` random
-#'   regression of order `n`; `fa(f, k)` / `rrc(f, k)` factor-analytic. Bare names
-#'   are factors; `a:b` is an interaction.
+#'   genotypes, else RR-BLUP — the two are prediction-equivalent). A `mrk()` fit
+#'   can score new genotypes with [predict.breedRB_fit()] and recover marker
+#'   effects with [solve_SNP()]; it is the recommended genomic term. `vm(f, K)`
+#'   effect of factor `f` with a supplied covariance matrix `K` — use it for a
+#'   kernel you already have and cannot rebuild from markers (pedigree A-matrix,
+#'   environmic kernel, externally-computed G, or any custom kernel). `leg(x, n)`
+#'   / `rr(x, n)` random regression of order `n`; `fa(f, k)` / `rrc(f, k)`
+#'   factor-analytic. Bare names are factors; `a:b` is an interaction.
 #' @param residual One-sided residual formula. `NULL`/`~ units` = homogeneous;
 #'   `~ dsum(~units | env)` = heterogeneous residual variances by `env`.
 #' @param data A data frame.
-#' @param relmat Named list of matrices referenced by `vm()` and `mrk()`. For
-#'   `vm()` these are relationship / covariance matrices (K, not its inverse),
-#'   with row/column names matching the factor levels. For `mrk()` the entry is a
-#'   marker matrix with genotypes in rows (row names = genotype IDs) and markers
-#'   in columns.
+#' @param relmat Named list of matrices referenced by `mrk()` and `vm()`. For
+#'   `mrk()` the entry is a marker matrix with genotypes in rows (row names =
+#'   genotype IDs) and markers in columns. For `vm()` the entry is a covariance /
+#'   kernel matrix (K, not its inverse) — genomic, pedigree, environmic or any
+#'   custom kernel — with row/column names matching the factor levels.
 #' @param nIter,burnIn,thin MCMC controls passed to BGLR.
 #' @param nChains Integer number of independent chains (distinct seeds). Enables
 #'   Gelman-Rubin diagnostics when `> 1`.
