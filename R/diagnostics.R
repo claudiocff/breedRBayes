@@ -11,12 +11,20 @@
 #' @param fit A `breedRB_fit`.
 #' @param what Passed to [as_mcmc()] (default `"varcomp"`; add `"mu"` to include
 #'   the intercept).
+#' @param plot Logical. If `TRUE`, also render `ggplot2` trace plots of the
+#'   monitored chains (via [plot_trace()]) and attach the plot object to the
+#'   returned data frame as the `"plot"` attribute. Default `FALSE`.
 #' @return A data frame with one row per monitored parameter: `param`, `n_eff`,
-#'   `geweke_z`, and `Rhat` (`NA` for single-chain fits).
+#'   `geweke_z`, and `Rhat` (`NA` for single-chain fits). When `plot = TRUE`,
+#'   the corresponding `ggplot` is attached as `attr(., "plot")`.
 #' @examples
-#' \donttest{ mcmc_diag(fit) }
+#' \donttest{
+#' mcmc_diag(fit)
+#' d <- mcmc_diag(fit, plot = TRUE)   # prints trace plots
+#' attr(d, "plot")                    # the ggplot object
+#' }
 #' @export
-mcmc_diag <- function(fit, what = "varcomp") {
+mcmc_diag <- function(fit, what = "varcomp", plot = FALSE) {
   stopifnot(inherits(fit, "breedRB_fit"))
   mc <- as_mcmc(fit, what = what)
   params <- coda::varnames(mc)
@@ -32,11 +40,18 @@ mcmc_diag <- function(fit, what = "varcomp") {
     if (!is.null(gd)) rhat <- gd$psrf[, 1]
   }
 
-  data.frame(param = params,
-             n_eff = as.numeric(n_eff[params]),
-             geweke_z = as.numeric(gew[params]),
-             Rhat = as.numeric(rhat),
-             row.names = NULL)
+  out <- data.frame(param = params,
+                    n_eff = as.numeric(n_eff[params]),
+                    geweke_z = as.numeric(gew[params]),
+                    Rhat = as.numeric(rhat),
+                    row.names = NULL)
+
+  if (isTRUE(plot)) {
+    p <- plot_trace(fit, what = what)
+    print(p)
+    attr(out, "plot") <- p
+  }
+  out
 }
 
 #' Trace plots of the variance-component chains

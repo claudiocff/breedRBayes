@@ -4,17 +4,22 @@
 \alias{mcmc_diag}
 \title{Markov-chain convergence diagnostics for a fitted model}
 \usage{
-mcmc_diag(fit, what = "varcomp")
+mcmc_diag(fit, what = "varcomp", plot = FALSE)
 }
 \arguments{
 \item{fit}{A \code{breedRB_fit}.}
 
 \item{what}{Passed to \code{\link[=as_mcmc]{as_mcmc()}} (default \code{"varcomp"}; add \code{"mu"} to include
 the intercept).}
+
+\item{plot}{Logical. If \code{TRUE}, also render \code{ggplot2} trace plots of the
+monitored chains (via \code{\link[=plot_trace]{plot_trace()}}) and attach the plot object to the
+returned data frame as the \code{"plot"} attribute. Default \code{FALSE}.}
 }
 \value{
 A data frame with one row per monitored parameter: \code{param}, \code{n_eff},
-\code{geweke_z}, and \code{Rhat} (\code{NA} for single-chain fits).
+\code{geweke_z}, and \code{Rhat} (\code{NA} for single-chain fits). When \code{plot = TRUE},
+the corresponding \code{ggplot} is attached as \code{attr(., "plot")}.
 }
 \description{
 Summarises convergence of the variance-component chains: effective sample
@@ -22,5 +27,9 @@ size, Geweke's z, and (when the fit has >1 chain) the Gelman-Rubin
 potential-scale-reduction factor (R-hat).
 }
 \examples{
-\donttest{ mcmc_diag(fit) }
+\donttest{
+mcmc_diag(fit)
+d <- mcmc_diag(fit, plot = TRUE)   # prints trace plots
+attr(d, "plot")                    # the ggplot object
+}
 }
