@@ -58,6 +58,7 @@
       }
       lev <- intersect(rownames(M0), unique(as.character(data[[comp$var]])))
       Mc  <- scale(M0[lev, , drop = FALSE], center = TRUE, scale = FALSE)  # centre markers
+      center <- attr(Mc, "scaled:center")         # training column means (for predicting new genos)
       attr(Mc, "scaled:center") <- NULL
       n <- length(lev); p <- ncol(Mc)
       cc <- sum(Mc^2) / n                          # = tr(Mc Mc')/n  ~ VanRaden 2*sum(pq)
@@ -81,7 +82,7 @@
               method, if (identical(comp$method, "auto")) " (auto)" else "", ".")
       list(X = X, meta = list(kind = "mrk", var = comp$var, relmat = comp$relmat,
                               levels = lev, method = method, bmap = bmap,
-                              markers = colnames(Mc), c_scale = cc))
+                              markers = colnames(Mc), center = center, c_scale = cc))
     },
     leg = {
       x <- as.numeric(data[[comp$var]])

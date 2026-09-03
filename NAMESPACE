@@ -3,6 +3,7 @@
 S3method(as_mcmc,breedRB_fit)
 S3method(plot_posterior,breedRB_fit)
 S3method(plot_posterior,breedRB_h2)
+S3method(predict,breedRB_fit)
 S3method(print,breedRB_fit)
 S3method(print,breedRB_h2)
 export(as_mcmc)

@@ -12,8 +12,9 @@ distributions, genetic correlations, and Markov-chain convergence diagnostics.
 ## Features
 
 - **One formula interface, four model classes**
-  - **GBLUP / fixed / random** — genomic relationship via `vm(gen, G)`, or a raw
-    marker matrix via `mrk(gen, M)` (auto GBLUP/RR-BLUP; `solve_SNP()` for effects).
+  - **GBLUP / fixed / random** — a raw marker matrix via `mrk(gen, M)` (auto
+    GBLUP/RR-BLUP; `predict()` new genotypes, `solve_SNP()` for effects), or a
+    ready-made relationship matrix via `vm(gen, G)`.
   - **Random regression / reaction norm** — `leg(x, order)` / `rr(x, order)`
     Legendre bases.
   - **Multi-trait** — `cbind(t1, t2, ...) ~ ...` with unstructured genetic
@@ -105,11 +106,12 @@ solutions onto the overall-mean scale (`BLUP + mu`):
 solution(fit, term = "gen", type = "random", add_mu = TRUE)
 ```
 
-### Marker matrix: automatic GBLUP / RR-BLUP
+### Genomic models from a marker matrix (recommended)
 
-`vm(gen, G)` fits GBLUP from a ready-made relationship matrix. When you have the
-**marker matrix** instead, `mrk(gen, M)` builds the model directly and picks the
-cheaper of the two mathematically equivalent parameterizations:
+`mrk(gen, M)` is the recommended way to fit a genomic model: give it the raw
+**marker matrix** (genotypes in rows, markers in columns) and it builds the model
+directly, picking the cheaper of the two mathematically equivalent
+parameterizations:
 
 - **markers ≥ genotypes** → **GBLUP** (an `n × n` genomic relationship, fitted in
   its principal-component basis),
@@ -123,15 +125,40 @@ fit <- bbglr(yield ~ 1 + env, random = ~ mrk(gen, M), data = dat, relmat = list(
 solution(fit, term = "mrk(gen, M)", type = "random")   # genomic breeding values
 ```
 
-`solve_SNP()` returns per-marker (allele-substitution) effects on the
-centred-marker scale, such that `GEBV = Mc %*% b`. For an RR-BLUP fit the effects
-are read directly; for a GBLUP fit they are **back-solved** from the breeding
-values (`b = Mcᵀ (Mc Mcᵀ)⁻¹ u`, applied to every posterior draw). GBLUP needs the
-marker matrix passed in; RR-BLUP does not:
+Because the marker matrix is retained, a `mrk()` fit can **predict new
+genotypes** and **recover marker effects** — a `vm()` fit (below) cannot.
+
+**Predict unobserved genotypes** with `predict()`: pass a marker matrix `M_new`
+for genotypes that were not in the training data. Their value is
+`Mc_new %*% b` (new markers centred by the *training* means, times the posterior
+marker effects), with the full posterior propagated to a credible interval.
+`add_mu = TRUE` (the default) puts predictions on the mean/phenotype scale:
 
 ```r
-snp <- solve_SNP(fit, M)                 # GBLUP fit: M required to back-solve
-head(snp[order(-abs(snp$effect)), ])     # largest-effect markers
+pred <- predict(fit, M_new, add_mu = TRUE)   # score genotypes never seen in training
+head(pred)                                   # ID, prediction, sd, lower, upper
+```
+
+**Marker effects** with `solve_SNP()`: per-marker allele-substitution effects on
+the centred-marker scale (`GEBV = Mc %*% b`). RR-BLUP effects are read directly;
+GBLUP effects are back-solved (`b = Mcᵀ (Mc Mcᵀ)⁻¹ u`) per posterior draw, reusing
+the training markers held in the fit:
+
+```r
+snp <- solve_SNP(fit)                     # no need to re-supply the marker matrix
+head(snp[order(-abs(snp$effect)), ])      # largest-effect markers
+```
+
+### `vm(gen, G)`: bring your own relationship matrix
+
+Use `vm(gen, G)` when you already have a **relationship / kernel matrix** and not
+the raw markers — a pedigree numerator (A) matrix, a `G` computed elsewhere, or a
+custom covariance kernel. It fits the same GBLUP model as `mrk()` in its GBLUP
+mode, but since it holds no markers it cannot `predict()` new genotypes or
+`solve_SNP()`. For marker data, prefer `mrk()`.
+
+```r
+fit <- bbglr(yield ~ 1 + env, random = ~ vm(gen, G), data = dat, relmat = list(G = G))
 ```
 
 ### Probability of selection

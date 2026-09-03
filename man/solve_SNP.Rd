@@ -10,8 +10,9 @@ solve_SNP(fit, M = NULL, term = NULL, prob = 0.95)
 \item{fit}{A \code{breedRB_fit} (single-trait) with a \code{vm()} or \code{mrk()} genomic term.}
 
 \item{M}{Marker matrix with genotypes in rows (row names matching the genotype
-IDs) and markers in columns. Required for a GBLUP fit; optional for a
-RR-BLUP fit (marker names are taken from the fit).}
+IDs) and markers in columns. Only needed to override the training markers
+when back-solving a GBLUP fit; for a \code{mrk()} fit the training markers stored
+in the fit are used automatically, and a RR-BLUP fit ignores \code{M}.}
 
 \item{term}{Genomic term identifier (label or key). Defaults to the first
 genomic term.}
@@ -42,10 +43,10 @@ regime in which \code{mrk()} selects GBLUP.
 }
 \examples{
 \donttest{
-snp <- solve_SNP(fit, M)   # back-solve marker effects from a GBLUP fit
+snp <- solve_SNP(fit)      # marker effects (back-solved for GBLUP, direct for RR-BLUP)
 head(snp[order(-abs(snp$effect)), ])
 }
 }
 \seealso{
-\code{\link[=gebv]{gebv()}}, \code{\link[=solution]{solution()}}.
+\code{\link[=predict.breedRB_fit]{predict.breedRB_fit()}} to score new genotypes, \code{\link[=solution]{solution()}}.
 }

@@ -104,15 +104,43 @@ test_that("mrk() auto-selects GBLUP when markers >= genotypes and solve_SNP back
   expect_equal(nrow(s), nrow(sim$M))
   expect_gt(cor(s$solution, sim$gv[s$effect]), 0.8)
 
-  # GBLUP fit needs M to back-solve marker effects
-  expect_error(solve_SNP(fit), "required")
-  snp <- solve_SNP(fit, sim$M)
+  # GBLUP fit back-solves marker effects using the training markers held by the fit
+  snp <- solve_SNP(fit)
   expect_equal(nrow(snp), ncol(sim$M))
   expect_equal(attr(snp, "method"), "GBLUP")
   # marker effects reproduce the GEBVs: Mc %*% b == u
   Mc <- scale(sim$M[s$effect, ], center = TRUE, scale = FALSE)
   recon <- as.numeric(Mc %*% snp$effect[match(colnames(Mc), snp$marker)])
   expect_gt(cor(recon, s$solution), 0.999)
+
+  # predict() on the training genotypes reproduces BLUP + mu
+  pred <- predict(fit, sim$M, add_mu = TRUE)
+  expect_equal(nrow(pred), nrow(sim$M))
+  expect_true(all(c("ID", "prediction", "sd", "lower", "upper") %in% names(pred)))
+  smu <- solution(fit, term = key, type = "random", add_mu = TRUE)
+  m   <- match(pred$ID, smu$effect)
+  expect_gt(cor(pred$prediction, smu$solution[m]), 0.999)
+  # predicting a held-out genotype: correlate with its true genetic value
+  pred0 <- predict(fit, sim$M, add_mu = FALSE)
+  expect_gt(cor(pred0$prediction, sim$gv[pred0$ID]), 0.8)
+})
+
+test_that("predict() scores genotypes held out of training", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  sim <- simulate_markers(n_gen = 220, n_mrk = 200, n_rep = 4)
+  train_ids <- paste0("g", 1:180)
+  test_ids  <- paste0("g", 181:220)
+  train <- sim$data[sim$data$gen %in% train_ids, ]
+
+  fit <- bbglr(y ~ 1, random = ~ mrk(gen, M), data = train,
+               relmat = list(M = sim$M[train_ids, ]), nIter = 3000, burnIn = 1000,
+               nChains = 1, verbose = FALSE)
+
+  # genotypes never seen in training are predicted from their markers alone
+  pred <- predict(fit, sim$M[test_ids, ], add_mu = FALSE)
+  expect_equal(sort(pred$ID), sort(test_ids))
+  expect_gt(cor(pred$prediction, sim$gv[pred$ID]), 0.6)
 })
 
 test_that("mrk() auto-selects RR-BLUP when genotypes > markers and solve_SNP reads fitted effects", {
