@@ -1,0 +1,546 @@
+---
+title: "From GBLUP to Reaction Norms: A Genomic Model Comparison on CIMMYT Wheat"
+subtitle: "A detailed walk-through with `breedRBayes`"
+author: "breedRBayes"
+date: "`r format(Sys.Date(), '%d %B %Y')`"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+    code_folding: show
+    df_print: paged
+    fig_width: 8
+    fig_height: 5
+    mathjax: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+                      fig.align = "center", dpi = 110)
+library(ggplot2)
+res <- readRDS("wheat_comparison.rds")
+theme_set(theme_minimal(base_size = 12))
+okabe <- c("#0072B2", "#E69F00", "#009E73", "#D55E00", "#CC79A7", "#56B4E9")
+fmt <- function(x, d = 3) formatC(x, format = "f", digits = d)
+kbl <- function(df, cap = NULL, digits = 3) {
+  knitr::kable(df, caption = cap, digits = digits, format = "html") |>
+    kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                              full_width = FALSE, position = "center")
+}
+mlab <- res$labs
+```
+
+<style>
+body { max-width: 1000px; }
+h1, h2 { color: #0E3D3B; }
+.tocify-header { font-size: 0.9em; }
+blockquote { background: #f3f7f6; border-left: 4px solid #E9B44C; }
+</style>
+
+# Overview {#overview}
+
+This report walks, in full detail, through a **genomic model comparison** on the
+classic CIMMYT wheat dataset that ships with **breedRBayes** — from a plain
+**genomic BLUP (GBLUP)** to a **fourth-degree random-regression (RR) reaction-norm**
+model. For every model we show the mathematics, the exact `breedRBayes` code, the
+parameter estimates, and an interpretation, and we compare the models on fit
+(DIC), heritability, genotype ranking and genotype-by-environment (GxE) behaviour.
+
+The engine underneath is **Bayesian** — every quantity below (variance components,
+heritabilities, reaction-norm coefficients, reliabilities, selection
+probabilities) is a full **posterior distribution** obtained by Markov-chain
+Monte Carlo (MCMC), summarised by its posterior mean and a 95% credible interval.
+
+```{r data-summary}
+ds <- data.frame(
+  Quantity = c("Genotypes (wheat lines)", "Environments", "Records (line x env)",
+               "Molecular markers", "MCMC iterations / burn-in / thin", "Chains"),
+  Value = c(res$n_gen, res$n_env, res$n_obs, res$n_mrk,
+            paste(res$ctrl$nIter, res$ctrl$burnIn, res$ctrl$thin, sep = " / "),
+            res$ctrl$nChains))
+kbl(ds, "Table 1. The CIMMYT wheat experiment and the MCMC settings used throughout.")
+```
+
+> **The data.** 599 CIMMYT wheat lines were evaluated in four environments; a
+> `r res$n_mrk`-marker matrix (`wheat_M`) links the genotypes genomically. The
+> yields are standardised *within* each environment, so the environment *means*
+> are flat — but the environments differ strongly in *how* they rank genotypes
+> (crossover GxE). This is exactly the situation reaction-norm models are built for.
+
+# The Bayesian mixed-model framework {#framework}
+
+Every model in this report is a special case of the general mixed model
+
+$$
+\mathbf{y} \;=\; \mathbf{X}\boldsymbol\beta \;+\; \sum_{r} \mathbf{Z}_r \mathbf{u}_r \;+\; \boldsymbol\varepsilon,
+\qquad
+\boldsymbol\varepsilon \sim \mathcal N(\mathbf 0,\, \sigma^2_\varepsilon \mathbf I),
+$$
+
+where $\mathbf y$ is the vector of yields, $\mathbf X\boldsymbol\beta$ the fixed
+effects, and each $\mathbf u_r$ is a random effect with its own covariance
+structure $\mathbf u_r \sim \mathcal N(\mathbf 0, \sigma^2_r \mathbf K_r)$.
+
+## Priors and estimation {#estimation}
+
+`breedRBayes` passes the model to the **BGLR** Gibbs sampler. The default priors
+are the standard conditionally-conjugate choices, which give closed-form full
+conditionals:
+
+$$
+\beta_j \propto \text{const (flat)},\qquad
+\mathbf u_r \mid \sigma^2_r \sim \mathcal N(\mathbf 0,\sigma^2_r\mathbf K_r),\qquad
+\sigma^2_r \sim \chi^{-2}(df_r, S_r),\qquad
+\sigma^2_\varepsilon \sim \chi^{-2}(df_\varepsilon, S_\varepsilon),
+$$
+
+with $\chi^{-2}$ the **scaled inverse chi-square**. The Gibbs sampler cycles
+through the full conditionals, each of which is available in closed form, e.g.
+for a variance component
+
+$$
+\sigma^2_r \mid \cdot \;\sim\; \chi^{-2}\!\Big(df_r + n_r,\;\; S_r + \mathbf u_r^\top \mathbf K_r^{-1}\mathbf u_r\Big),
+$$
+
+and for the effects a Gaussian whose mean is the usual BLUP-type shrinkage
+solution. After discarding the burn-in and thinning, the retained draws
+$\{\theta^{(1)},\dots,\theta^{(T)}\}$ *are* the posterior — we report
+$\bar\theta = \tfrac1T\sum_t \theta^{(t)}$ and the 2.5/97.5% quantiles.
+
+## Genomic relationships {#grm}
+
+`mrk(gen, wheat_M)` turns the raw marker matrix $\mathbf M$ (coded $0/1$) into a
+**VanRaden genomic relationship matrix**
+
+$$
+\mathbf G \;=\; \frac{(\mathbf M - 2\mathbf p\mathbf 1^\top)(\mathbf M - 2\mathbf p\mathbf 1^\top)^\top}{2\sum_k p_k(1-p_k)},
+$$
+
+where $p_k$ is the allele frequency of marker $k$. The genomic values are then
+$\mathbf u = \mathbf Z\mathbf g$ with $\mathbf g\sim\mathcal N(\mathbf 0,\sigma^2_g\mathbf G)$
+— equivalently a ridge regression on markers (RR-BLUP). This is how genotypes
+that were *never observed together* still borrow strength through their shared
+genome.
+
+# The model ladder {#ladder}
+
+We compare five nested genomic models. All share the same fixed **population
+reaction norm** `leg(x)` and a random environment effect; they differ only in the
+**order of the genotype-specific reaction norm** — i.e. how flexibly each line is
+allowed to respond to the environmental gradient $x$.
+
+```{r ladder-table}
+lad <- data.frame(
+  Model = names(mlab),
+  Name = unname(mlab),
+  `Genotype term` = c("$g_i$ (intercept only)",
+                      "$g_i + b_{i1}L_1(x)$",
+                      "$g_i + b_{i1}L_1(x) + b_{i2}L_2(x)$",
+                      "$+\\,b_{i3}L_3(x)$",
+                      "$+\\,b_{i4}L_4(x)$"),
+  Meaning = c("Plain GBLUP: one genomic value per line, no GxE slope",
+              "Linear reaction norm (genomic Finlay-Wilkinson)",
+              "Quadratic reaction norm (curvature allowed)",
+              "Cubic reaction norm",
+              "Quartic reaction norm (saturates 4 environments)"),
+  check.names = FALSE)
+kbl(lad, "Table 2. The five genomic models, from plain GBLUP (M0) to a quartic reaction norm (M4).")
+```
+
+## Model M0 — plain genomic BLUP {#m0}
+
+$$
+y_{ij} \;=\; \mu + f(x_j) + g_i + E_j + \varepsilon_{ij},
+\qquad
+\mathbf g \sim \mathcal N(\mathbf 0, \sigma^2_g\mathbf G),\;
+E_j \sim \mathcal N(0,\sigma^2_E).
+$$
+
+Each line has a **single** genomic value $g_i$ (its overall genetic merit); the
+fixed term $f(x_j)=\mu+\beta_1 L_1(x_j)+\dots$ is the *population* response to the
+environment. There is **no genotype-specific slope** — GBLUP assumes every line
+reacts to the environment in the same way.
+
+## Models M1–M4 — genomic reaction norms {#m1-m4}
+
+We let each line's genetic value **change smoothly along the environmental
+gradient** $x$ (here the leading GxE axis, see below):
+
+$$
+y_{ij} \;=\; \mu + f(x_j) + \underbrace{g_i + \sum_{k=1}^{q} b_{ik}\,L_k(x_j)}_{\text{genotype reaction norm } v_i(x_j)} + E_j + \varepsilon_{ij},
+$$
+
+where $L_k$ are **orthonormal Legendre polynomials** on $[-1,1]$ (so
+$L_1$ is linear, $L_2$ quadratic, …), and $q$ is the model order (1–4). The
+line-specific coefficients are genomic:
+
+$$
+\mathbf g \sim \mathcal N(\mathbf 0,\sigma^2_g\mathbf G),\qquad
+\mathbf b_k \sim \mathcal N(\mathbf 0,\sigma^2_{b_k}\mathbf G),
+$$
+
+i.e. each Legendre coefficient is itself a GBLUP effect, so slopes are predicted
+even for lines with few records by borrowing across the genomic relationship
+matrix. The genotype's **reaction norm** is the curve
+$v_i(x)=g_i+\sum_k b_{ik}L_k(x)$; its intercept measures **broad adaptability**
+and its slope measures **responsiveness** to the environment.
+
+## The environmental gradient {#gradient}
+
+```{r env-index}
+kbl(res$xmap[order(res$xmap$x), ], "Table 3. The environmental index x (leading GxE axis).", digits = 3)
+```
+
+Because yields are standardised within environment, the Finlay–Wilkinson index
+(the environment mean) is flat. We instead use the **leading GxE axis** — the
+first environment score from a singular-value decomposition of the
+genotype × environment matrix — as $x$. Environment **E1** sits far from the
+others (it ranks lines very differently), so $x$ has genuine spread and the
+reaction norm has something real to model.
+
+# Fitting the models {#code}
+
+The entire ladder is five `bbglr()` calls. `mrk(gen, wheat_M)` is the genomic
+main effect (the intercept), and `mrk(gen, wheat_M):leg(x, q)` its
+reaction-norm interaction:
+
+```{r fit-code, echo=TRUE, eval=FALSE}
+library(breedRBayes)
+data(wheat); data(wheat_M)
+rel  <- list(wheat_M = wheat_M)
+ctrl <- bbglr_control(nIter = 5000, burnIn = 2000, thin = 2, nChains = 2)
+
+# Environmental index x = leading GxE axis (first env SVD score), added to `dat`.
+# (see report source for the SVD; classic FW would use the environment mean.)
+
+# M0  plain GBLUP -------------------------------------------------------------
+M0 <- bbglr(yield ~ leg(x), random = ~ mrk(gen, wheat_M) + env,
+            residual = ~ units, data = dat, relmat = rel, control = ctrl)
+
+# M1..M4  add a genomic reaction norm of order q ------------------------------
+M2 <- bbglr(yield ~ leg(x),
+            random = ~ mrk(gen, wheat_M) + mrk(gen, wheat_M):leg(x, 2) + env,
+            residual = ~ units, data = dat, relmat = rel, control = ctrl)
+# ... M1 uses leg(x, 1), M3 leg(x, 3), M4 leg(x, 4)
+```
+
+Every downstream number in this report comes from the extractor functions:
+
+```{r extract-code, echo=TRUE, eval=FALSE}
+varcomp(M2)                                        # variance components (+ K matrix)
+heritability(M2, genetic = "mrk(gen, wheat_M)")            # h2 of the intercept
+heritability(M2, genetic = "mrk(gen, wheat_M):leg(x, 2)")  # per-coefficient h2
+model_fit(M2)                                      # DIC, pD, R2, RMSE, reliability
+solution(M2, term = "mrk(gen, wheat_M)")           # genomic values (GEBVs)
+reaction_norm(M2, term = "mrk(gen, wheat_M):leg(x, 2)")    # per-line curves
+rr_gradient(M2, term = "mrk(gen, wheat_M):leg(x, 2)")      # across-gradient analytics
+gxe(M2,  term = "mrk(gen, wheat_M):leg(x, 2)")             # adaptability/responsiveness/stability
+```
+
+# Model comparison: which order fits best? {#dic}
+
+The **Deviance Information Criterion (DIC)** trades goodness of fit against model
+complexity, $\text{DIC} = \overline{D(\theta)} + p_D$, where $\overline{D}$ is the
+posterior-mean deviance and the **effective number of parameters**
+$p_D = \overline{D(\theta)} - D(\bar\theta)$ measures how much the extra
+coefficients actually cost. **Lower DIC is better.** We also report the residual
+variance $\sigma^2_\varepsilon$, the in-sample $R^2$ and RMSE.
+
+```{r dic-table}
+d <- res$dic
+d$best <- ifelse(d$model == res$best, "★", "")
+names(d) <- c("Model", "Description", "DIC", "pD", "R2", "RMSE", "varE", "")
+kbl(d, "Table 4. Model-fit ladder. Lower DIC is better; the star marks the winner.", digits = 2)
+```
+
+```{r dic-plot, fig.height=4.2, fig.cap="Figure 1. DIC across the model ladder. The dashed line marks the minimum; going beyond it buys complexity (pD) without a better fit — the classic over-parameterisation signature, expected here because there are only four environments."}
+d <- res$dic
+d$model <- factor(d$model, levels = d$model)
+ggplot(d, aes(model, dic, group = 1)) +
+  geom_hline(yintercept = min(d$dic), linetype = "dashed", colour = "#E9B44C") +
+  geom_line(colour = "#0E3D3B", linewidth = 0.9) +
+  geom_point(aes(size = pD), colour = "#0E3D3B") +
+  geom_point(data = d[which.min(d$dic), ], colour = "#D55E00", size = 4) +
+  scale_size_continuous(name = "pD (complexity)", range = c(2, 7)) +
+  labs(x = NULL, y = "DIC (lower = better)",
+       title = "Model-fit ladder: GBLUP → quartic reaction norm") +
+  theme_minimal(base_size = 12)
+```
+
+> **Reading Figure 1.** The DIC drops as soon as we allow a genotype-specific
+> slope, then flattens. Because the trial has only **four environments**, a
+> reaction norm can have at most a handful of identifiable shape parameters — the
+> cubic and quartic terms add `pD` (complexity) without improving fit. The
+> winning model is **`r res$labs[[res$best]]`** (`r res$best`); we use it (or the
+> quadratic **M2**) for the biological interpretation below.
+
+# Variance components {#varcomp}
+
+`varcomp()` returns the posterior of every variance component. For the reaction-norm
+models it additionally returns the **realised across-genotype coefficient
+covariance matrix** $\mathbf K$ — the (co)variances of the intercept and each
+Legendre slope — which is what actually drives GxE.
+
+```{r vc-table}
+vcm  <- res$vc[[res$best]]
+vsum <- if (is.data.frame(vcm)) vcm else vcm$summary
+kbl(vsum, sprintf("Table 5. Posterior variance components for the winning model (%s).", res$best), digits = 4)
+```
+
+The **environmental variance** captures the (small, because standardised) spread
+of environment means; the **residual** $\sigma^2_\varepsilon$ is the within-line
+noise; and the genomic components (intercept + slopes, plus their covariances in
+$\mathbf K$) are the heritable signal. A **negative intercept–slope covariance**
+would mean high-yielding lines tend to be *less* responsive (a
+stability/productivity trade-off).
+
+# Heritability of the reaction norm {#h2}
+
+Broad-sense genomic heritability is the fraction of phenotypic variance explained
+by the genomic effect. For a **single coefficient** $c$ (the intercept, or a
+Legendre slope) `breedRBayes` computes, in every MCMC draw,
+
+$$
+h^2_c \;=\; \frac{\widehat{\mathrm{Var}}(c)}{\widehat{\mathrm{Var}}(c) + \sigma^2_\varepsilon},
+$$
+
+using the corresponding diagonal element of $\mathbf K$, and summarises the
+resulting posterior. `heritability(fit, genetic = "mrk(gen, wheat_M):leg(x, q)")`
+returns **one heritability per coefficient**.
+
+```{r h2-intercept}
+h2i <- do.call(rbind, lapply(names(res$h2_main), function(m) {
+  s <- res$h2_main[[m]]
+  data.frame(Model = m, s[, intersect(c("quantity","mean","median","sd","lower","upper"), names(s))])
+}))
+kbl(h2i, "Table 6. Genomic heritability of the intercept (overall genetic merit) across models.", digits = 3)
+```
+
+```{r h2-coef}
+h2c <- do.call(rbind, lapply(names(res$h2_coef), function(m) {
+  s <- res$h2_coef[[m]]
+  data.frame(Model = m, s[, intersect(c("quantity","mean","median","sd","lower","upper"), names(s))])
+}))
+kbl(h2c, "Table 7. Per-coefficient heritability for each reaction-norm model (intercept + Legendre slopes).", digits = 3)
+```
+
+> **Interpretation.** The **intercept heritability** (Table 6) is the reliability
+> of overall merit and is stable across models. The **slope heritabilities**
+> (Table 7) tell you whether the *responsiveness* to the environment is itself
+> heritable — i.e. whether you can select for GxE. Higher-order coefficients
+> typically have low, poorly-estimated heritability here, another sign that four
+> environments cannot support a quartic curve.
+
+# Reaction norms: how genotypes respond to the environment {#curves}
+
+The heart of the model. Each line's predicted genetic value is a **curve** across
+the environmental gradient, $v_i(x) = g_i + \sum_k b_{ik} L_k(x)$. Where curves
+are parallel there is no GxE; where they **cross**, the ranking of genotypes
+changes between environments — the essence of crossover GxE.
+
+```{r rn-plot, fig.height=5, fig.cap="Figure 2. Genomic reaction norms for a random sample of 120 wheat lines (quadratic model M2). The thick red dashed line is the population mean response. Fanning and crossing of the thin lines is genotype-by-environment interaction; vertical ticks mark the four real environments."}
+cv  <- res$curves                       # columns: id, gradient, value
+pop <- aggregate(value ~ gradient, data = cv, FUN = mean)   # population = mean curve
+set.seed(1)
+show <- sample(unique(cv$id), min(120L, length(unique(cv$id))))
+ggplot(cv[cv$id %in% show, ], aes(gradient, value, group = id)) +
+  geom_line(alpha = 0.15, colour = "#0072B2", linewidth = 0.3) +
+  geom_line(data = pop, aes(gradient, value), inherit.aes = FALSE,
+            colour = "red", linetype = "dashed", linewidth = 1) +
+  geom_rug(data = res$xmap, aes(x = x), inherit.aes = FALSE, sides = "b",
+           length = unit(0.03, "npc")) +
+  labs(x = "Environmental gradient  x  (leading GxE axis)", y = "Predicted genetic value",
+       title = "Genomic reaction norms (M2) — a random sample of 120 lines") +
+  theme_minimal(base_size = 12)
+```
+
+# Ranking genotypes and how the ranking changes {#ranking}
+
+## Does the *order* of the model change who wins? {#rankcor}
+
+```{r rankcor-heat, fig.height=4.2, fig.cap="Figure 3. Spearman rank correlation of the genomic intercepts (overall merit) between models. Near-1 values mean the models agree on overall ranking even though they disagree about GxE."}
+rc <- res$rank_cor
+df <- expand.grid(a = rownames(rc), b = colnames(rc))
+df$r <- as.vector(rc)
+ggplot(df, aes(a, b, fill = r)) + geom_tile(colour = "white") +
+  geom_text(aes(label = sprintf("%.2f", r)), size = 3.4) +
+  scale_fill_gradient2(low = "#D55E00", mid = "#f7f7f7", high = "#0E3D3B",
+                       midpoint = 0.9, limits = c(min(rc), 1), name = "Spearman") +
+  labs(x = NULL, y = NULL, title = "Rank agreement of overall merit across models") +
+  coord_equal() + theme_minimal(base_size = 12)
+```
+
+## Per-environment ranking (crossover GxE) {#bump}
+
+Overall merit is not the whole story: because the reaction norms cross, the **best
+lines change from environment to environment**. Below we take the top lines by
+overall merit and track their predicted rank in each real environment (from the
+M2 curves evaluated at each environment's $x$).
+
+```{r bump, fig.height=5, fig.cap="Figure 4. Bump chart: predicted rank (1 = best) of the top-15 overall lines in each environment, ordered along the gradient. Lines that stay flat are broadly adapted; lines that swing are responsive/specialists."}
+pe <- res$pred_env
+topN <- head(order(-res$gebv[[res$best]]), 15)
+top_ids <- res$gebv$gen[topN]
+ranks <- apply(-pe, 2, rank)          # rank 1 = highest value
+rk <- ranks[top_ids, , drop = FALSE]
+env_ord <- res$env_x$env
+long <- do.call(rbind, lapply(rownames(rk), function(g)
+  data.frame(gen = g, env = factor(colnames(rk), levels = env_ord), rank = rk[g, ])))
+ggplot(long, aes(env, rank, group = gen, colour = gen)) +
+  geom_line(linewidth = 0.7, alpha = 0.8) + geom_point(size = 2) +
+  scale_y_reverse(breaks = scales::pretty_breaks()) +
+  guides(colour = "none") +
+  labs(x = "Environment (ordered along gradient x)", y = "Predicted rank (1 = best)",
+       title = "Who wins where: ranking of the top-15 lines across environments") +
+  theme_minimal(base_size = 12)
+```
+
+# GxE descriptors: adaptability, responsiveness, stability {#gxe}
+
+`gxe()` condenses each reaction norm into three breeder-facing numbers:
+
+- **Broad adaptability** — the average genetic value across the gradient (the
+  intercept-like level; higher = better everywhere).
+- **Responsiveness** — the linear slope $\mathrm{cov}(v_i,x)/\mathrm{var}(x)$
+  (how strongly the line tracks the environment).
+- **Stability** — the coefficient of variation of the curve,
+  $\text{CV}_{ge}=100\,\mathrm{sd}(v_i)/|\overline{v_i}|$; **lower CV = more
+  stable** across environments.
+
+```{r gxe-table}
+gt <- res$gxe
+show_cols <- intersect(c("id","adaptability","responsiveness","cv_ge","adaptability_rank","stability_rank"), names(gt))
+kbl(head(gt[order(-gt$adaptability), show_cols], 15),
+    "Table 8. Top 15 lines by broad adaptability, with responsiveness and stability (from M2).", digits = 3)
+```
+
+```{r gxe-scatter, fig.height=5, fig.cap="Figure 5. The breeder's map: adaptability (x) vs responsiveness (y), point size = instability (CVge). Top-right = high-merit, environment-responsive specialists; top-left/high-merit-low-slope = broadly adapted all-rounders; small points are the most stable."}
+gt <- res$gxe
+ggplot(gt, aes(adaptability, responsiveness)) +
+  geom_hline(yintercept = 0, colour = "grey70") +
+  geom_point(aes(size = cv_ge), alpha = 0.5, colour = "#0072B2") +
+  geom_point(data = head(gt[order(-gt$adaptability), ], 10),
+             colour = "#D55E00", size = 2.6) +
+  scale_size_continuous(name = "CVge\n(instability)", range = c(0.6, 5)) +
+  labs(x = "Broad adaptability (mean genetic value)",
+       y = "Responsiveness (reaction-norm slope)",
+       title = "Adaptability vs responsiveness (orange = top-10 merit)") +
+  theme_minimal(base_size = 12)
+```
+
+# Selection probabilities for the best model {#pr}
+
+A point GEBV tells you *where* a line ranks; it does **not** tell you how *sure*
+we are. Because the fit is Bayesian, we can answer the breeder's real question
+directly: **what is the probability that a line is truly among the best?**
+
+`pr()` computes this from the posterior. In **every** MCMC draw it re-ranks all
+599 lines and flags the top fraction; the selection probability is the fraction
+of draws in which the line makes the cut:
+
+$$
+P_i(\text{top } \alpha) \;=\; \frac{1}{T}\sum_{t=1}^{T}
+\mathbb{1}\!\left\{\, u_i^{(t)} \;\ge\; Q_{1-\alpha}\big(\mathbf u^{(t)}\big) \right\},
+$$
+
+where $u_i^{(t)}$ is the genomic value of line $i$ in draw $t$ and
+$Q_{1-\alpha}$ is the $(1-\alpha)$ quantile of that draw's values. The ranking is
+redone *within each draw*, so the probability is unaffected by centering and
+honestly propagates posterior uncertainty. The call is a one-liner:
+
+```{r pr-code, echo=TRUE, eval=FALSE}
+pr(M2, term = "mrk(gen, wheat_M)", type = "random", threshold = 0.10)  # P(top 10%)
+pr(M2, term = "mrk(gen, wheat_M)", type = "random", pair = TRUE)       # P(A beats B)
+```
+
+## Who is a safe selection? {#pr-table}
+
+```{r pr-table}
+ps <- res$pr_sel
+ps <- ps[order(-ps$p_top10), ]
+tab <- head(ps, 15)
+names(tab) <- c("Line", "GEBV", "P(top 5%)", "P(top 10%)", "P(top 20%)")
+kbl(tab, "Table 9. Top 15 lines by the posterior probability of ranking in the top 10% for overall genomic merit (best model, M2). A high GEBV with a modest probability signals an uncertain call.", digits = 3)
+```
+
+```{r pr-scatter, fig.height=4.6, fig.cap="Figure 6. Selection probability vs point GEBV for all 599 lines. Colour is P(top 20%). Lines high on the y-axis are confident selections; a high GEBV sitting low on the y-axis is a high-risk pick whose ranking the data cannot yet pin down."}
+ps <- res$pr_sel
+ggplot(ps, aes(gebv, p_top10, colour = p_top20)) +
+  geom_point(alpha = 0.7, size = 1.6) +
+  scale_colour_viridis_c(name = "P(top 20%)", option = "C") +
+  labs(x = "Genomic value (GEBV, best model)", y = "P(top 10%)",
+       title = "Selection probability vs point estimate") +
+  theme_minimal(base_size = 12)
+```
+
+> **Why this matters.** Ranking on GEBV alone treats a knife-edge difference the
+> same as a decisive one. The probability separates lines the data are *sure*
+> about from lines that merely happened to land on top of a noisy point estimate
+> — the difference between a safe advance and a gamble.
+
+## Head-to-head comparisons {#pr-pair}
+
+`pr(..., pair = TRUE)` gives the full matrix of pairwise win probabilities
+$P(A \succ B) = \tfrac1T\sum_t \mathbb 1\{u_A^{(t)} > u_B^{(t)}\}$. Below, for the
+top-12 lines by merit, is the probability that the **row** line beats the
+**column** line:
+
+```{r pr-pair-heat, fig.height=5.2, fig.cap="Figure 7. Pairwise win probability P(row beats column) among the top-12 lines. Deep values near 1 (or 0) are decisive; cells near 0.5 (pale) are statistical ties — the two lines are genetically indistinguishable on these data."}
+pm  <- res$pr_pair
+ord <- res$top_ids                       # already ordered by merit
+df  <- expand.grid(row = factor(ord, levels = rev(ord)),
+                   col = factor(ord, levels = ord), stringsAsFactors = FALSE)
+df$p <- mapply(function(r, c) pm[as.character(r), as.character(c)], df$row, df$col)
+ggplot(df, aes(col, row, fill = p)) +
+  geom_tile(colour = "white") +
+  geom_text(aes(label = ifelse(is.na(p), "", sprintf("%.2f", p))), size = 3) +
+  scale_fill_gradient2(low = "#D55E00", mid = "#f7f7f7", high = "#0E3D3B",
+                       midpoint = 0.5, limits = c(0, 1), na.value = "grey90",
+                       name = "P(row > col)") +
+  labs(x = "…beats this line", y = "This line…",
+       title = "Pairwise win probabilities among the top-12 lines") +
+  coord_equal() +
+  theme_minimal(base_size = 11) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+> **Reading Figure 7.** Rows are ordered best-to-worst by GEBV. Where the top
+> block is uniformly dark the leader genuinely dominates; where cells fade toward
+> 0.5 the "ranking" between two lines is a coin-flip and either could be advanced
+> without regret.
+
+# Conclusions {#conclusions}
+
+```{r takeaways, results='asis'}
+best <- res$best; bl <- res$labs[[best]]
+cat(sprintf("
+- **Genomics works.** Linking the 599 lines through the %s-marker genomic
+  relationship matrix lets every line borrow strength across the genome; the
+  genomic intercept heritability is the reliability of overall merit.
+- **A reaction norm beats plain GBLUP** on this data: allowing a
+  genotype-specific slope lowers the DIC, and the winning model is **%s (%s)**.
+- **But more is not better.** With only four environments, cubic/quartic terms
+  add complexity (pD) without improving DIC and give poorly-estimated,
+  low-heritability slopes — the ladder makes the over-parameterisation visible.
+- **GxE is real and it re-ranks.** The reaction norms cross (Figure 2), the
+  best lines change between environments (Figure 4), and `gxe()` separates
+  broadly-adapted all-rounders from responsive specialists (Figure 5).
+- **Rank with probabilities, not just point estimates.** `pr()` turns the
+  posterior into the probability that a line is truly a top selection
+  (Figure 6) and into head-to-head win probabilities (Figure 7), so a confident
+  advance can be told apart from a coin-flip between statistical ties.
+- **Everything is a posterior.** Each estimate above carries a credible interval
+  from the MCMC draws — heritabilities, variance components, reaction-norm
+  coefficients, selection probabilities and rankings all come with honest
+  Bayesian uncertainty.
+", res$n_mrk, bl, best))
+```
+
+---
+
+<small>Generated with **breedRBayes** on the bundled CIMMYT `wheat` / `wheat_M`
+data. Reproduce with `report/run_wheat_comparison.R` then knit
+`report/wheat_model_comparison.Rmd`.</small>

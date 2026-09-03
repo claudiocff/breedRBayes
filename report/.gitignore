@@ -1,0 +1,4 @@
+# cached fit + logs (regenerate with run_wheat_comparison.R)
+wheat_comparison.rds
+*.out
+figs/
