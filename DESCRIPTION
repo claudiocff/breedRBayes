@@ -13,7 +13,8 @@ Description: A formula-based interface, inspired by 'asreml' and 'sommer',
     posterior distributions, and Markov-chain convergence diagnostics.
 License: MIT + file LICENSE
 Encoding: UTF-8
-LazyData: false
+LazyData: true
+LazyDataCompression: xz
 Depends: R (>= 4.1.0)
 Imports:
     BGLR,

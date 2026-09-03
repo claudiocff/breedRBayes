@@ -18,9 +18,10 @@ distributions, genetic correlations, and Markov-chain convergence diagnostics.
     or a ready-made relationship matrix via `vm(gen, G)`.
   - **Random regression / reaction norm** — `leg(x, order)` / `rr(x, order)`
     Legendre bases, with `reaction_norm()` curves, `model_fit()` goodness-of-fit,
-    intercept–slope covariance in `varcomp()`, and `rr_gradient()` across-gradient
-    genetic correlation / heritability / reliability / selection-probability
-    surfaces.
+    intercept–slope covariance and per-coefficient variance in `varcomp()`,
+    per-coefficient `heritability()`, `gxe()` adaptability/responsiveness/stability
+    summaries, and `rr_gradient()` across-gradient genetic correlation /
+    heritability / reliability / selection-probability surfaces.
   - **Multi-trait** — `cbind(t1, t2, ...) ~ ...` with unstructured genetic
     covariance and genetic correlations.
   - **Factor-analytic** — `fa(gen, k)` / `rrc(gen, k)` reduced-rank genetic
@@ -360,6 +361,27 @@ g$prob_top      # P(top 20%) at each gradient point, genotype x gradient
 g$plots         # ggplots: $cor, $h2, $reliability, $prob
 ```
 
+**Per-coefficient heritability.** Passing the interaction term to `heritability()`
+breaks the reaction norm into the heritability of **each** coefficient (intercept
+and every Legendre degree) — recovered from the realised coefficient variances,
+even though BGLR fits one shared component for the whole interaction:
+
+```r
+heritability(fit_rr, genetic = "gen:leg(x, 1)")
+#>        quantity  mean  ...
+#>         h2(gen)  ...        # intercept heritability
+#>  h2(gen:leg(x, 1))  ...     # slope heritability
+```
+
+**GxE summary.** `gxe()` reduces every genotype to three breeding-relevant
+descriptors — **broad adaptability** (overall level / intercept),
+**responsiveness** (slope along the gradient) and **stability** (`cv_ge`, the
+coefficient of variation of the curve; lower = more stable):
+
+```r
+gxe(fit_rr, term = "gen:leg(x, 1)")   # id, adaptability, responsiveness, cv_ge + ranks
+```
+
 ### Multi-trait and genetic correlations
 
 ```r
@@ -382,19 +404,89 @@ fit_fa <- bbglr(
 )
 ```
 
+## Worked example: CIMMYT wheat (with and without genomics)
+
+The package ships the classic **CIMMYT wheat** dataset (599 lines in 4
+environments, 1279 markers) as `wheat` (long-format phenotypes) and `wheat_M`
+(the marker matrix, keyed to `wheat$gen`). The same data drive a
+phenotype-only analysis and a genomic one — just swap `gen` for
+`mrk(gen, wheat_M)`. Below is a full Finlay–Wilkinson-style reaction-norm
+workflow; the printed numbers are from a 2-chain, 4000-iteration run.
+
+```r
+data(wheat); data(wheat_M)
+
+## ---- 1. Multi-environment trial, no genomics -----------------------------
+fit <- bbglr(yield ~ env, random = ~ gen, residual = ~ units, data = wheat)
+
+varcomp(fit)                        # gen 0.192,  varE 0.812
+heritability(fit, genetic = "gen")  # h2 = 0.191  (95% CI 0.151-0.233)
+mcmc_diag(fit)                      # Rhat 1.00, n_eff ~1000 (gen), ~2800 (varE)
+pr(fit, term = "gen", threshold = 0.1)   # P(each line in the top 10%)
+
+## Finlay-Wilkinson covariate: the environmental index (env solution)
+es      <- solution(fit, term = "env", type = "fixed")
+env_sol <- data.frame(env = es$effect, x = es$solution)
+dat     <- merge(wheat, env_sol, by = "env")
+
+## ---- 2. Reaction norm, no genomics ---------------------------------------
+fit_rr <- bbglr(yield ~ leg(x), random = ~ gen + gen:leg(x) + env,
+                residual = ~ units, data = dat)
+
+varcomp(fit_rr)                              # + var(gen), var(gen:leg(x)), cov(...)
+heritability(fit_rr, genetic = "gen:leg(x)") # h2(gen)=0.189, h2(gen:leg(x))=0.036
+gxe(fit_rr, term = "gen:leg(x)")             # adaptability / responsiveness / cv_ge
+g <- rr_gradient(fit_rr, term = "gen:leg(x)", threshold = 0.20)
+range(g$gcor)                                # 0.61 to 1.00  (rankings mostly stable)
+
+## Order selection by DIC (leg order 0..4)
+mk  <- function(rf) model_fit(bbglr(yield ~ leg(x), random = rf,
+                                    residual = ~ units, data = dat))$dic
+c(rr0 = mk(~ gen + env),
+  rr1 = mk(~ gen + gen:leg(x)   + env),
+  rr2 = mk(~ gen + gen:leg(x,2) + env),
+  rr3 = mk(~ gen + gen:leg(x,3) + env),
+  rr4 = mk(~ gen + gen:leg(x,4) + env))
+#>    rr0     rr1     rr2     rr3     rr4
+#> 6596.2  6643.4  6596.2  6599.0  6612.4     # the flat model is competitive here
+
+## ---- 3. The same workflow WITH genomics (mrk + relmat) -------------------
+rel   <- list(wheat_M = wheat_M)
+fit_g <- bbglr(yield ~ env, random = ~ mrk(gen, wheat_M),
+               residual = ~ units, data = wheat, relmat = rel)
+heritability(fit_g)      # h2 = 0.368  -- genomic model borrows across relatives
+
+fit_rrg <- bbglr(yield ~ leg(x),
+                 random = ~ mrk(gen, wheat_M) + mrk(gen, wheat_M):leg(x) + env,
+                 residual = ~ units, data = dat, relmat = rel)
+heritability(fit_rrg, genetic = "mrk(gen, wheat_M):leg(x)")
+#>  h2(mrk(gen, wheat_M))       0.205
+#>  h2(mrk(gen, wheat_M):leg(x))0.246   -- a much larger heritable slope
+gg <- rr_gradient(fit_rrg, term = "mrk(gen, wheat_M):leg(x)")
+range(gg$gcor)           # -0.31 to 1.00  -- genomics exposes real re-ranking (GxE)
+```
+
+Compared with the phenotype-only fit, GBLUP roughly **doubles** the estimated
+heritability (0.37 vs 0.19) by sharing information across relatives, and the
+genomic reaction norm resolves a much larger heritable slope, so its
+across-gradient genetic correlation drops well below 1 (genuine
+genotype-by-environment interaction) where the factor model saw little.
+
 ## Example data
 
-Example datasets ship in `inst/extdata/` (soybean phenotypes, a genomic
-relationship matrix, and environmental-covariate matrices). Reach them with
-`system.file("extdata", "<file>", package = "breedRBayes")`. Runnable end-to-end
-scripts live in `inst/scripts/`.
+The bundled `wheat` / `wheat_M` datasets (above) are the recommended starting
+point. Additional example files ship in `inst/extdata/` (soybean phenotypes, a
+genomic relationship matrix, and environmental-covariate matrices); reach them
+with `system.file("extdata", "<file>", package = "breedRBayes")`. Runnable
+end-to-end scripts live in `inst/scripts/`.
 
 ## Documentation
 
 Every exported function is documented; see `?bbglr`, `?varcomp`,
 `?heritability`, `?mcmc_diag` and `?solution`, and — for random regression —
-`?reaction_norm`, `?model_fit` and `?rr_gradient`. A full PDF reference
-manual (`breedRBayes-manual.pdf`) is included at the repository root.
+`?reaction_norm`, `?model_fit`, `?rr_gradient` and `?gxe`. The bundled example
+data are documented at `?wheat` and `?wheat_M`. A full PDF reference manual
+(`breedRBayes-manual.pdf`) is included at the repository root.
 
 ## License
 
