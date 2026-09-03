@@ -89,6 +89,19 @@ simulate_markers <- function(n_gen, n_mrk, n_rep = 3, seed = 1) {
   list(M = M, data = df, gv = gv)
 }
 
+test_that(".expand_rows is identical to the incidence-matrix product", {
+  set.seed(7)
+  lev <- paste0("g", 1:6)
+  M2  <- matrix(rnorm(6 * 4), 6, 4, dimnames = list(lev, paste0("c", 1:4)))
+  f   <- sample(lev, 50, replace = TRUE)                 # replicated genotypes
+  # old path: dense incidence times the level-indexed matrix
+  Z   <- .incidence(factor(f, levels = lev))
+  ref <- Z %*% M2
+  got <- .expand_rows(M2, f, lev)                        # new path: row-gather, no dense Z
+  expect_equal(unname(got), unname(ref))
+  expect_equal(colnames(got), colnames(M2))
+})
+
 test_that("mrk() auto-selects GBLUP when markers >= genotypes and solve_SNP back-solves", {
   skip_on_cran()
   skip_if_not_installed("BGLR")

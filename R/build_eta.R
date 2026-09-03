@@ -43,8 +43,7 @@
       lev <- intersect(colnames(K), unique(as.character(data[[comp$var]])))
       K <- K[lev, lev, drop = FALSE]
       rot <- .pc_rotation(K)
-      Z <- .incidence(factor(data[[comp$var]], levels = lev))
-      X <- Z %*% rot$PC
+      X <- .expand_rows(rot$PC, data[[comp$var]], lev)   # incidence %*% PC, as a row-gather
       colnames(X) <- lev
       list(X = X, meta = list(kind = "vm", var = comp$var, relmat = comp$relmat,
                               levels = lev, method = "GBLUP", bmap = rot$PC))
@@ -75,7 +74,6 @@
       method <- if (identical(comp$method, "auto")) {
         if (p >= n) "GBLUP" else "RRBLUP"          # markers >= genotypes -> GBLUP
       } else comp$method
-      Z <- .incidence(factor(data[[comp$var]], levels = lev))
       if (identical(method, "GBLUP")) {
         G   <- tcrossprod(Mc) / cc                 # VanRaden G = Z Z' / (2 sum pq), mean diag ~ 1
         # Guarantee a non-singular (positive-definite) G: adding a small ridge to
@@ -84,12 +82,12 @@
         ridge <- 1e-6 * mean(diag(G))
         diag(G) <- diag(G) + ridge
         rot <- .pc_rotation(G)
-        X   <- Z %*% rot$PC
+        X   <- .expand_rows(rot$PC, data[[comp$var]], lev)   # incidence %*% PC, as a row-gather
         colnames(X) <- lev
         bmap <- rot$PC
       } else {
         Msc  <- Mc / sqrt(cc)                      # so var(Msc a) = G * sigma^2_a  (== GBLUP)
-        X    <- Z %*% Msc
+        X    <- .expand_rows(Msc, data[[comp$var]], lev)     # incidence %*% Msc, as a row-gather
         colnames(X) <- colnames(Mc)
         bmap <- Msc                                # per-genotype value = b %*% t(bmap)
       }

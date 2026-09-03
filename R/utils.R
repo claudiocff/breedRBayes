@@ -58,6 +58,26 @@ legendre_basis <- function(x, order, orthonormal = FALSE) {
   Z
 }
 
+#' Expand a level-indexed matrix to observation rows by gathering
+#'
+#' Equivalent to `.incidence(f) %*% M` (the 0/1 factor design of `f` times a
+#' matrix `M` whose rows are indexed by `levels`), but computed as a pure
+#' row-gather: no dense `N x nLevel` incidence matrix is built and no matrix
+#' product is formed. Row `i` of the result is `M[level_of(f_i), ]`. This is
+#' numerically identical to the incidence product (an incidence matrix only
+#' selects rows) but avoids the `O(N x nLevel)` allocation and the
+#' `O(N x nLevel x ncol(M))` multiply — the main memory cost under replication.
+#'
+#' @param M Matrix with one row per level (row order matching `levels`).
+#' @param f Vector of observations, coercible to a factor with these `levels`.
+#' @param levels Character vector of levels, in the same order as `rows(M)`.
+#' @return A matrix with one row per element of `f`.
+#' @keywords internal
+.expand_rows <- function(M, f, levels) {
+  idx <- as.integer(factor(f, levels = levels))
+  M[idx, , drop = FALSE]
+}
+
 #' Clean a marker matrix before building a genomic model
 #'
 #' Mean-imputes missing values (per marker/column) and drops markers with
