@@ -467,4 +467,22 @@ test_that("reaction_norm() works for a plain-factor (non-genomic) random regress
   rn2 <- reaction_norm(fit, term = "gen:leg(x)", plot = FALSE, leg_basis = FALSE,
                        n_grid = 50)
   expect_equal(range(rn2$gradient), range(dat$x), tolerance = 1e-8)
+
+  # ---- goodness-of-fit helpers on the same RR model --------------------------
+  fv <- fitted(fit)
+  rs <- residuals(fit)
+  expect_equal(length(fv), nrow(fit$data))
+  expect_false(is.null(attr(fv, "sd")))
+  expect_equal(as.numeric(fv + rs), fit$data$y, tolerance = 1e-8)  # obs = fitted + resid
+
+  mf <- model_fit(fit)
+  expect_s3_class(mf, "breedRB_modelfit")
+  expect_true(all(c("n", "r2", "rmse", "dic", "pD", "varE", "reliability") %in% names(mf)))
+  expect_gt(mf$r2, 0.5)
+  expect_true(all(c("gen", "gen:leg(x)") %in% mf$reliability$term))
+
+  # DIC prefers the reaction norm over a slope-free model on data with real GxE
+  fit0 <- bbglr(y ~ leg(x), random = ~ gen, residual = ~ units, data = dat,
+                nIter = 3000, burnIn = 1000, nChains = 1, verbose = FALSE)
+  expect_lt(model_fit(fit)$dic, model_fit(fit0)$dic)
 })
