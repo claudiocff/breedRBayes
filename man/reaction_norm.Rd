@@ -11,7 +11,9 @@ reaction_norm(
   add_fixed_reg = TRUE,
   plot = TRUE,
   leg_basis = TRUE,
-  n_grid = 100L
+  n_grid = 100L,
+  genotype = NULL,
+  observed = FALSE
 )
 }
 \arguments{
@@ -31,7 +33,8 @@ curves sit on the phenotype scale; otherwise curves are genotype deviations
 around zero.}
 
 \item{plot}{Logical (default \code{TRUE}). Draw and print a \pkg{ggplot2} figure of
-value versus gradient, one line per genotype. The plot is also returned as
+value versus gradient, one line per genotype, with the fixed population
+regression overlaid as a red dashed line. The plot is also returned as
 attribute \code{"plot"}.}
 
 \item{leg_basis}{Logical (default \code{TRUE}). If \code{TRUE} the gradient axis is the
@@ -39,6 +42,16 @@ standardized Legendre domain \eqn{[-1, 1]}; if \code{FALSE} it is back-transform
 to the original covariate scale using the range stored at fitting.}
 
 \item{n_grid}{Integer; number of gradient points (default 100).}
+
+\item{genotype}{Optional character vector of genotype ids (levels of the
+grouping factor) to display in the plot, e.g. \code{c("G1", "G2")}; the selected
+curves are drawn coloured (and observed points, if shown, matched by colour)
+while the rest are dropped. \code{NULL} (default) shows all genotypes as faint
+lines. The returned data frame always contains every genotype.}
+
+\item{observed}{Logical (default \code{FALSE}). Overlay the observed phenotype
+points (response versus the gradient covariate) for the plotted genotypes.
+Most meaningful with \code{add_fixed_reg = TRUE} (both on the phenotype scale).}
 }
 \value{
 A long-format data frame with \code{id} (genotype), \code{gradient} (the

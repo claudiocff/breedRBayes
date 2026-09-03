@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------
 
 # aes() columns of the long data frame built inside reaction_norm()
-utils::globalVariables(c("gradient", "value", "id"))
+utils::globalVariables(c("gradient", "value", "id", "obs"))
 
 #' Detect any random-regression interaction (`grouping x leg()`)
 #'
@@ -110,12 +110,21 @@ utils::globalVariables(c("gradient", "value", "id"))
 #'   curves sit on the phenotype scale; otherwise curves are genotype deviations
 #'   around zero.
 #' @param plot Logical (default `TRUE`). Draw and print a \pkg{ggplot2} figure of
-#'   value versus gradient, one line per genotype. The plot is also returned as
+#'   value versus gradient, one line per genotype, with the fixed population
+#'   regression overlaid as a red dashed line. The plot is also returned as
 #'   attribute `"plot"`.
 #' @param leg_basis Logical (default `TRUE`). If `TRUE` the gradient axis is the
 #'   standardized Legendre domain \eqn{[-1, 1]}; if `FALSE` it is back-transformed
 #'   to the original covariate scale using the range stored at fitting.
 #' @param n_grid Integer; number of gradient points (default 100).
+#' @param genotype Optional character vector of genotype ids (levels of the
+#'   grouping factor) to display in the plot, e.g. `c("G1", "G2")`; the selected
+#'   curves are drawn coloured (and observed points, if shown, matched by colour)
+#'   while the rest are dropped. `NULL` (default) shows all genotypes as faint
+#'   lines. The returned data frame always contains every genotype.
+#' @param observed Logical (default `FALSE`). Overlay the observed phenotype
+#'   points (response versus the gradient covariate) for the plotted genotypes.
+#'   Most meaningful with `add_fixed_reg = TRUE` (both on the phenotype scale).
 #'
 #' @return A long-format data frame with `id` (genotype), `gradient` (the
 #'   evaluation point, on the chosen scale) and `value` (fitted reaction-norm
@@ -131,7 +140,8 @@ utils::globalVariables(c("gradient", "value", "id"))
 #' @seealso [solution()] for the underlying intercept and slope coefficients.
 #' @export
 reaction_norm <- function(fit, term, type = NULL, add_fixed_reg = TRUE,
-                          plot = TRUE, leg_basis = TRUE, n_grid = 100L) {
+                          plot = TRUE, leg_basis = TRUE, n_grid = 100L,
+                          genotype = NULL, observed = FALSE) {
   stopifnot(inherits(fit, "breedRB_fit"))
   if (isTRUE(fit$response$multitrait)) {
     stop("reaction_norm() currently supports single-trait fits.", call. = FALSE)
@@ -189,9 +199,14 @@ reaction_norm <- function(fit, term, type = NULL, add_fixed_reg = TRUE,
   # Per-genotype curves: intercept + basis %*% slopes  ([nGen x nGrid]).
   curves <- outer(int, rep(1, n_grid)) + S %*% t(B)
 
+  # Fixed population regression across the gradient (mu + fixed leg() curve on
+  # the phenotype scale; just the fixed leg() deviation when curves are kept as
+  # genotype deviations). Drawn as the red dashed reference line in the plot.
+  pop <- .mu_mean(fit) + .fixed_leg_curve(fit, legvar, gstd)
   if (isTRUE(add_fixed_reg)) {
-    pop <- .mu_mean(fit) + .fixed_leg_curve(fit, legvar, gstd)
     curves <- sweep(curves, 2L, pop, "+")
+  } else {
+    pop <- .fixed_leg_curve(fit, legvar, gstd)
   }
 
   # Gradient axis: standardized domain, or back-transformed to the covariate scale.
@@ -206,16 +221,71 @@ reaction_norm <- function(fit, term, type = NULL, add_fixed_reg = TRUE,
   )
   attr(out, "grid") <- gx
 
+  # Genotype selection for the plot (the returned data frame keeps all genotypes).
+  if (!is.null(genotype)) {
+    genotype <- as.character(genotype)
+    miss     <- setdiff(genotype, ids)
+    if (length(miss)) {
+      stop("Unknown genotype", if (length(miss) > 1L) "s" else "", ": ",
+           paste(miss, collapse = ", "), ".\n  Available: ",
+           paste(utils::head(ids, 20L), collapse = ", "),
+           if (length(ids) > 20L) ", ..." else "", call. = FALSE)
+    }
+  }
+
   if (isTRUE(plot)) {
     xlab <- if (isTRUE(leg_basis)) paste0("Legendre gradient  [-1, 1]  (", legvar, ")")
             else legvar
-    p <- ggplot2::ggplot(out, ggplot2::aes(x = gradient, y = value, group = id)) +
-      ggplot2::geom_line(alpha = 0.4, linewidth = 0.3, colour = "steelblue") +
+    sel     <- if (is.null(genotype)) ids else genotype
+    plot_df <- out[out$id %in% sel, , drop = FALSE]
+    colour_by_id <- !is.null(genotype)                 # highlight a chosen subset
+
+    p <- ggplot2::ggplot(plot_df,
+                         ggplot2::aes(x = gradient, y = value, group = id))
+    if (colour_by_id) {
+      p <- p + ggplot2::geom_line(ggplot2::aes(colour = id), linewidth = 0.7)
+    } else {
+      p <- p + ggplot2::geom_line(alpha = 0.4, linewidth = 0.3, colour = "steelblue")
+    }
+
+    # Observed phenotype points for the plotted genotypes.
+    if (isTRUE(observed)) {
+      idcol <- gc$var
+      resp  <- fit$response$traits
+      if (!is.null(fit$data) && all(c(idcol, legvar, resp) %in% names(fit$data))) {
+        od <- data.frame(id  = as.character(fit$data[[idcol]]),
+                         xr  = as.numeric(fit$data[[legvar]]),
+                         obs = as.numeric(fit$data[[resp]]),
+                         stringsAsFactors = FALSE)
+        od <- od[od$id %in% sel & is.finite(od$obs) & is.finite(od$xr), , drop = FALSE]
+        od$gradient <- if (isTRUE(leg_basis))
+          2 * (od$xr - rng[1]) / diff(rng) - 1 else od$xr
+        if (nrow(od)) {
+          p <- p + if (colour_by_id)
+            ggplot2::geom_point(data = od,
+              ggplot2::aes(x = gradient, y = obs, colour = id),
+              inherit.aes = FALSE, size = 1.4, alpha = 0.6)
+          else
+            ggplot2::geom_point(data = od,
+              ggplot2::aes(x = gradient, y = obs),
+              inherit.aes = FALSE, size = 1, alpha = 0.3, colour = "grey40")
+        }
+      }
+    }
+
+    # Fixed population regression: red dashed reference line.
+    pop_df <- data.frame(gradient = gx, value = pop)
+    p <- p + ggplot2::geom_line(data = pop_df,
+                                ggplot2::aes(x = gradient, y = value),
+                                inherit.aes = FALSE,
+                                colour = "red", linetype = "dashed",
+                                linewidth = 0.9) +
       ggplot2::labs(x = xlab,
                     y = if (isTRUE(add_fixed_reg)) "Reaction norm (phenotype scale)"
                         else "Reaction norm (genotype deviation)",
                     title = paste0("Reaction norms: ", meta$label)) +
       ggplot2::theme_minimal()
+    if (colour_by_id) p <- p + ggplot2::labs(colour = "genotype")
     print(p)
     attr(out, "plot") <- p
   }

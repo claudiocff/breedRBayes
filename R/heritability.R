@@ -10,6 +10,12 @@
   if (id %in% keys)   return(id)
   hit <- keys[labels == id]
   if (length(hit)) return(hit[1])
+  # Whitespace-insensitive fallback: labels are deparsed with spaces (e.g.
+  # "gen:leg(x, 4)"), but users routinely type them without ("gen:leg(x,4)").
+  norm <- function(z) gsub("[[:space:]]+", "", z)
+  nid  <- norm(id)
+  hit  <- keys[norm(keys) == nid | norm(labels) == nid]
+  if (length(hit)) return(hit[1])
   stop("Term '", id, "' not found. Available: ",
        paste(labels, collapse = ", "), call. = FALSE)
 }

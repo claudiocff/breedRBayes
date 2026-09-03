@@ -554,4 +554,12 @@ test_that("model_fit() breaks out reliability per Legendre degree for a q>1 RR",
   g <- rr_gradient(fit, term = "gen:leg(x, 2)", n_grid = 5L, plot = FALSE)
   vrows <- vc$mean[grepl("^var\\(", vc$term)]
   expect_equal(vrows, diag(g$K), tolerance = 1e-6)
+
+  # term resolution is whitespace-insensitive: the deparsed label carries a
+  # space ("gen:leg(x, 2)") but users routinely type it without ("gen:leg(x,2)")
+  g2 <- rr_gradient(fit, term = "gen:leg(x,2)", n_grid = 5L, plot = FALSE)
+  expect_equal(g2$K, g$K, tolerance = 1e-12)
+  rn_ns <- reaction_norm(fit, term = "gen:leg(x,2)", plot = FALSE, n_grid = 10L)
+  rn_sp <- reaction_norm(fit, term = "gen:leg(x, 2)", plot = FALSE, n_grid = 10L)
+  expect_equal(rn_ns$value, rn_sp$value, tolerance = 1e-12)
 })
