@@ -44,8 +44,16 @@ heritability <- function(fit, genetic = NULL, denominator = NULL, prob = 0.95) {
   if (isTRUE(fit$response$multitrait)) return(.heritability_mt(fit, prob))
   if (is.null(genetic)) {
     genetic <- .vm_keys(fit)
-    if (!length(genetic)) stop("No vm() genetic term found; pass `genetic=` explicitly.",
-                               call. = FALSE)
+    if (!length(genetic)) {
+      rk    <- .random_keys(fit)
+      avail <- unname(vapply(fit$meta[rk], `[[`, character(1), "label"))
+      stop("No vm() genetic term was found to use as the heritability numerator.\n",
+           "Pass `genetic=` explicitly to pick the random effect, e.g. ",
+           "heritability(fit, genetic = ", if (length(avail)) paste0("\"", avail[1], "\"") else "\"<term>\"", ").\n",
+           "Available random terms: ",
+           if (length(avail)) paste(avail, collapse = ", ") else "(none)",
+           call. = FALSE)
+    }
   }
   gkeys <- vapply(genetic, .resolve_term, character(1), fit = fit)
   vc <- .read_varchains(fit)
