@@ -19,17 +19,34 @@
 #' Build the design + metadata for a single interaction component
 #' @param exp_var Explained-variance target for the genomic PC rotation (GBLUP
 #'   `vm()` / `mrk()`); `NA` keeps every non-null component.
+#' @param solo `TRUE` when the component is the whole term (not part of an
+#'   interaction). A solo fixed factor is given full "cell-means" coding (one
+#'   column per level, no reference dropped) so every level appears in
+#'   [solution()]; factors inside an interaction keep treatment contrasts to stay
+#'   identifiable against the intercept and the main effects.
 #' @keywords internal
-.component_design <- function(comp, data, relmat, role, exp_var = NA_real_) {
+.component_design <- function(comp, data, relmat, role, exp_var = NA_real_,
+                              solo = TRUE) {
   switch(comp$type,
     factor = {
       if (identical(role, "fixed")) {
-        # treatment contrasts (drop reference level) so mu + factor is full rank
         f <- factor(data[[comp$var]])
-        X <- model.matrix(~ f)[, -1, drop = FALSE]
-        colnames(X) <- levels(f)[-1]
-        list(X = X, meta = list(kind = "factor", var = comp$var,
-                                levels = levels(f), reference = levels(f)[1]))
+        if (isTRUE(solo)) {
+          # cell-means coding: one column per level (all levels shown). The intercept
+          # mu is then aliased with the level means, so BGLR's flat prior splits an
+          # overall mean into mu and each level's deviation; add_mu = TRUE in
+          # solution() recovers the per-level means.
+          X <- model.matrix(~ -1 + f)
+          colnames(X) <- levels(f)
+          list(X = X, meta = list(kind = "factor", var = comp$var,
+                                  levels = levels(f), reference = NULL))
+        } else {
+          # treatment contrasts (drop reference level) so mu + factor is full rank
+          X <- model.matrix(~ f)[, -1, drop = FALSE]
+          colnames(X) <- levels(f)[-1]
+          list(X = X, meta = list(kind = "factor", var = comp$var,
+                                  levels = levels(f), reference = levels(f)[1]))
+        }
       } else {
         X <- .incidence(data[[comp$var]], center = TRUE)
         list(X = X, meta = list(kind = "factor", var = comp$var,
@@ -134,7 +151,7 @@
 .term_eta <- function(term, data, relmat, exp_var = NA_real_) {
   comp_designs <- lapply(term$components, .component_design,
                          data = data, relmat = relmat, role = term$role,
-                         exp_var = exp_var)
+                         exp_var = exp_var, solo = length(term$components) == 1L)
   X <- comp_designs[[1]]$X
   if (length(comp_designs) > 1L) {
     for (i in 2:length(comp_designs)) X <- .khatri_rao_rows(X, comp_designs[[i]]$X)

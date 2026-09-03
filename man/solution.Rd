@@ -25,22 +25,40 @@ per posterior draw so the credible intervals account for uncertainty in \code{mu
 }
 \value{
 A data frame with \code{effect} (level / coefficient name), \code{solution}
-(posterior mean), \code{sd}, \code{lower}, \code{upper}. Random-term rows are ordered by
-decreasing \code{solution}; fixed-term rows keep design order. The pooled draws
-matrix (\verb{nDraws x nEffect}) is attached as attribute \code{"draws"}, and the
-resolved role as attribute \code{"type"}.
+(posterior mean), \code{sd}, \code{lower}, \code{upper}. \strong{Random terms} additionally carry
+\code{pev} — the prediction error variance, i.e. the posterior variance of the
+effect (computed on the deviation scale, before any \code{add_mu} shift) — and
+\code{reliability}, the BLUP reliability
+\eqn{r^2_i = 1 - \mathrm{PEV}_i / \mathrm{Var}(u_i)} bounded to \verb{[0, 1]}, where
+the prior variance \eqn{\mathrm{Var}(u_i)} is \eqn{G_{ii}\sigma^2_u} for a
+genomic term and \eqn{\sigma^2_u} for a plain random factor / basis
+coefficient. Random-term rows are ordered by decreasing \code{solution};
+fixed-term rows keep design order. The pooled draws matrix
+(\verb{nDraws x nEffect}) is attached as attribute \code{"draws"}, and the resolved role
+as attribute \code{"type"}.
 }
 \description{
 Extracts the posterior distribution of the effect solutions for any term in a
 fitted model, pooled across chains:
 \itemize{
-\item \strong{Random terms} return BLUPs. A \code{vm()} genomic term is back-mapped through
-its principal-component rotation to per-genotype values (identical to
+\item \strong{Random terms} return BLUPs. A \code{vm()}/\code{mrk()} genomic term is back-mapped
+through its principal-component rotation to per-genotype values (identical to
 \code{\link[=gebv]{gebv()}}); a plain random factor (fitted without a relationship matrix)
-returns one solution per level; random regression / covariate terms return
-one solution per basis coefficient.
-\item \strong{Fixed terms} return the posterior of each estimable coefficient (treatment
-contrasts; the reference level is the implicit baseline at 0).
+returns one solution per level. A genomic \strong{random regression}
+(\code{mrk(gen, M):leg(x, q)}) returns per-genotype reaction-norm coefficients,
+one column per \code{leg()} degree (\code{deg1} = linear slope, \code{deg2} = quadratic,
+...); with \code{q = 1} the rows are simply the per-genotype slopes. The
+\strong{intercept} comes from the genomic main-effect term (\code{mrk(gen, M)}), so a
+full reaction norm is read as
+\code{solution(fit, "mrk(gen, M)")} (intercept) plus
+\code{solution(fit, "mrk(gen, M):leg(x, 1)")} (slope). Non-genomic random
+regression / covariate terms return one solution per basis coefficient.
+\item \strong{Fixed terms} return the posterior of each estimable coefficient. A
+single fixed factor uses cell-means coding, so \strong{every level} gets a row
+(no reference level dropped); the estimates are deviations from the aliased
+intercept \code{mu}, and \code{add_mu = TRUE} puts them on the per-level mean scale.
+A factor \strong{inside an interaction} keeps treatment contrasts (its reference
+level is the implicit baseline at 0) so the term stays identifiable.
 }
 }
 \examples{

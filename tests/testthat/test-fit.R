@@ -41,13 +41,21 @@ test_that("bbglr fits GBLUP and recovers heritability", {
 
   s <- solution(fit, term = "vm(gen, G)", type = "random")
   expect_equal(nrow(s), nrow(sim$G))
-  expect_true(all(c("effect", "solution", "sd", "lower", "upper") %in% names(s)))
+  expect_true(all(c("effect", "solution", "sd", "lower", "upper",
+                    "pev", "reliability") %in% names(s)))
+  # PEV is the posterior variance of the effect (= sd^2) and reliability is in [0, 1]
+  expect_equal(s$pev, s$sd^2, tolerance = 1e-8)
+  expect_true(all(s$reliability >= 0 & s$reliability <= 1))
 
   # add_mu shifts every solution onto the intercept scale by a constant mean
   smu <- solution(fit, term = "vm(gen, G)", type = "random", add_mu = TRUE)
   shift <- smu$solution - s$solution[match(smu$effect, s$effect)]
   expect_equal(shift, rep(shift[1], nrow(smu)), tolerance = 1e-6)
   expect_gt(abs(shift[1]), 0)
+  # PEV / reliability are a property of the effect, unchanged by the mu shift
+  m <- match(s$effect, smu$effect)
+  expect_equal(s$pev, smu$pev[m], tolerance = 1e-8)
+  expect_equal(s$reliability, smu$reliability[m], tolerance = 1e-8)
 
   # pr(): probability of ranking in the top 20%
   p <- pr(fit, term = "vm(gen, G)", type = "random", threshold = 0.20)
@@ -302,4 +310,126 @@ test_that("mrk() auto-selects RR-BLUP when genotypes > markers and solve_SNP rea
   Mc <- scale(sim$M[s$effect, ], center = TRUE, scale = FALSE)
   recon <- as.numeric(Mc %*% snp$effect[match(colnames(Mc), snp$marker)])
   expect_gt(cor(recon, s$solution), 0.999)
+})
+
+# ---------------------------------------------------------------------------
+# Genomic random regression (reaction norms): per-genotype and per-marker
+# intercept + slope, for both GBLUP and RR-BLUP genomic bases.
+# ---------------------------------------------------------------------------
+
+simulate_rr <- function(n_gen, n_mrk, n_env = 12, seed = 1) {
+  set.seed(seed)
+  M <- matrix(rbinom(n_gen * n_mrk, 2, 0.3), n_gen, n_mrk)
+  rownames(M) <- paste0("g", seq_len(n_gen)); colnames(M) <- paste0("m", seq_len(n_mrk))
+  Ms <- scale(M)
+  u_int <- as.numeric(Ms %*% rnorm(n_mrk)); u_slp <- as.numeric(Ms %*% rnorm(n_mrk))
+  names(u_int) <- names(u_slp) <- rownames(M)
+  gg <- rep(rownames(M), each = n_env)
+  xx <- rep(seq(-1, 1, length.out = n_env), n_gen)
+  y  <- u_int[gg] + u_slp[gg] * xx + rnorm(n_gen * n_env, 0, 0.5)
+  list(M = M, u_int = u_int, u_slp = u_slp,
+       data = data.frame(gen = gg, x = xx, y = as.numeric(y)))
+}
+
+test_that("solution()/solve_SNP() give per-genotype and per-marker intercept + slope for a genomic RR", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  int_term <- "mrk(gen, M)"; slp_term <- "mrk(gen, M):leg(x, 1)"
+  for (sim in list(GBLUP  = simulate_rr(n_gen = 50,  n_mrk = 300),   # markers >= genotypes
+                   RRBLUP = simulate_rr(n_gen = 120, n_mrk = 60))) { # genotypes > markers
+    td <- tempfile(); dir.create(td)
+    # environmental covariate enters BOTH the fixed (population) and random parts
+    fit <- bbglr(y ~ 1 + leg(x, 1), random = ~ mrk(gen, M) + mrk(gen, M):leg(x, 1),
+                 data = sim$data, relmat = list(M = sim$M),
+                 nIter = 4000, burnIn = 1500, thin = 5, nChains = 2,
+                 verbose = FALSE, saveAt = td)
+
+    # intercept from the main effect, slope from the interaction — one row per genotype
+    ii <- solution(fit, term = int_term, type = "random")
+    ss <- solution(fit, term = slp_term, type = "random")
+    expect_equal(nrow(ii), nrow(sim$M))
+    expect_equal(nrow(ss), nrow(sim$M))                  # leg order 1 => one slope per genotype
+    expect_gt(cor(ii$solution, sim$u_int[ii$effect]), 0.9)
+    expect_gt(cor(ss$solution, sim$u_slp[ss$effect]), 0.9)
+    expect_true(all(c("pev", "reliability") %in% names(ss)))  # RR term still gets PEV/reliability
+
+    # marker effects for intercept and slope, and the GEBV = Mc b round-trip per coef
+    Mc <- scale(sim$M[ii$effect, ], center = TRUE, scale = FALSE)
+    attr(Mc, "scaled:center") <- NULL
+    for (tm in list(list(int_term, ii), list(slp_term, ss))) {
+      snp <- solve_SNP(fit, term = tm[[1]])
+      expect_equal(nrow(snp), ncol(sim$M))
+      b <- snp$effect; names(b) <- snp$marker
+      recon <- as.numeric(Mc[, names(b)] %*% b)
+      geno  <- tm[[2]]
+      expect_gt(cor(recon, geno$solution[match(ii$effect, geno$effect)]), 0.999)
+    }
+  }
+})
+
+test_that("a solo fixed factor uses cell-means coding (every level shown); interactions keep contrasts", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  set.seed(3)
+  env <- factor(rep(c("E1", "E2", "E3", "E4"), each = 60))
+  rep_ <- factor(rep(rep(c("R1", "R2", "R3"), each = 20), 4))
+  gen  <- factor(rep(paste0("g", 1:20), 12))
+  mu_env <- c(E1 = 2, E2 = 5, E3 = 9, E4 = 4)
+  ug     <- stats::setNames(rnorm(20, 0, 1), paste0("g", 1:20))
+  y <- mu_env[as.character(env)] + ug[as.character(gen)] + rnorm(240, 0, 0.7)
+  dat <- data.frame(env = env, rep = rep_, gen = gen, y = y)
+
+  fit <- bbglr(y ~ env + env:rep, random = ~ gen, data = dat,
+               nIter = 3000, burnIn = 1000, nChains = 1, verbose = FALSE)
+
+  s <- solution(fit, term = "env", type = "fixed")
+  expect_equal(nrow(s), nlevels(env))                     # ALL levels, none dropped
+  expect_true(all(levels(env) %in% s$effect))             # incl. the old reference E1
+  # add_mu recovers the per-level means (cell means), which track the truth
+  sm <- solution(fit, term = "env", type = "fixed", add_mu = TRUE)
+  cm <- stats::setNames(sm$solution, sm$effect)[names(mu_env)]
+  expect_gt(cor(cm, mu_env), 0.99)
+
+  # a fixed factor inside an interaction keeps treatment contrasts (identifiable)
+  si <- solution(fit, term = "env:rep", type = "fixed")
+  expect_equal(nrow(si), (nlevels(env) - 1L) * (nlevels(rep_) - 1L))
+})
+
+test_that("reaction_norm() evaluates per-genotype curves across the gradient", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  sim <- simulate_rr(n_gen = 50, n_mrk = 300, n_env = 12)
+  fit <- bbglr(y ~ 1 + leg(x, 1), random = ~ mrk(gen, M) + mrk(gen, M):leg(x, 1),
+               data = sim$data, relmat = list(M = sim$M),
+               nIter = 4000, burnIn = 1500, thin = 5, nChains = 2, verbose = FALSE)
+
+  rn <- reaction_norm(fit, term = "mrk(gen, M):leg(x, 1)", type = "random",
+                      plot = FALSE, n_grid = 60)
+  expect_true(all(c("id", "gradient", "value") %in% names(rn)))
+  expect_equal(nrow(rn), nrow(sim$M) * 60L)                 # one row per genotype x grid
+  expect_equal(length(unique(rn$id)), nrow(sim$M))
+  expect_equal(range(rn$gradient), c(-1, 1))                 # Legendre [-1, 1] domain
+
+  # per-genotype fitted slope (linear fit of the curve) recovers the true slope
+  sl <- vapply(split(rn, rn$id),
+               function(d) stats::coef(stats::lm(value ~ gradient, d))[2], numeric(1))
+  expect_gt(cor(sl[names(sim$u_slp)], sim$u_slp), 0.9)
+
+  # add_fixed_reg = FALSE returns genotype deviations centred on ~0 across the grid
+  rnd <- reaction_norm(fit, term = "mrk(gen, M):leg(x, 1)", plot = FALSE,
+                       add_fixed_reg = FALSE, n_grid = 60)
+  expect_lt(abs(mean(rnd$value)), 1e-6)
+  # the fixed regression shifts the curves by a non-zero population mean
+  expect_gt(abs(mean(rn$value) - mean(rnd$value)), 0)
+
+  # leg_basis = FALSE puts the gradient back on the original covariate scale
+  rn2 <- reaction_norm(fit, term = "mrk(gen, M):leg(x, 1)", plot = FALSE,
+                       leg_basis = FALSE, n_grid = 60)
+  expect_equal(range(rn2$gradient), range(sim$data$x), tolerance = 1e-8)
+
+  # a non-RR term is rejected; the plot object is returned when plot = TRUE
+  expect_error(reaction_norm(fit, term = "mrk(gen, M)", plot = FALSE),
+               "random-regression")
+  rp <- reaction_norm(fit, term = "mrk(gen, M):leg(x, 1)", plot = TRUE, n_grid = 20)
+  expect_s3_class(attr(rp, "plot"), "ggplot")
 })

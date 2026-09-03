@@ -20,8 +20,8 @@
 #' @param term Term identifier (label as written in the formula, e.g. `"gen"`, or
 #'   the internal key). If `NULL`, the first random term is used.
 #' @param type Optional; one of `"random"` or `"fixed"`, validated against the
-#'   term's actual role. For a fixed term fitted with treatment contrasts the
-#'   reference level is not among the coefficients and is therefore excluded.
+#'   term's actual role. A fixed factor inside an interaction uses treatment
+#'   contrasts, so its reference level is not among the coefficients.
 #' @param threshold Selected fraction in `(0, 1)`; `0.20` = top 20%. Ignored when
 #'   `pair = TRUE`.
 #' @param higher Logical (default `TRUE`). If `TRUE` the "top" is the highest

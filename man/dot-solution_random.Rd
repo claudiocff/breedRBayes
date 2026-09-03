@@ -11,6 +11,10 @@ A list (one matrix per chain, \verb{[nSamples x nEffect]}) of post-burn-in
 draws. Kept per-chain so the intercept can be aligned before pooling.
 }
 \description{
-Per-chain posterior draws for a random term, back-mapped to interpretable columns
+Genomic terms are back-mapped through their principal-component rotation to
+per-genotype values. A genomic random regression (\code{mrk(gen, M):leg(x, q)}) is
+back-mapped \strong{per \code{leg()} degree}, so each genotype gets one column per degree
+(\code{deg1} = linear slope, \code{deg2} = quadratic, ...); with \code{q = 1} the columns are
+just the genotypes. Other genomic interactions fall back to the fitted basis.
 }
 \keyword{internal}

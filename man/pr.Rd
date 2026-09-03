@@ -13,8 +13,8 @@ pr(fit, term = NULL, type = NULL, threshold = 0.2, higher = TRUE, pair = FALSE)
 the internal key). If \code{NULL}, the first random term is used.}
 
 \item{type}{Optional; one of \code{"random"} or \code{"fixed"}, validated against the
-term's actual role. For a fixed term fitted with treatment contrasts the
-reference level is not among the coefficients and is therefore excluded.}
+term's actual role. A fixed factor inside an interaction uses treatment
+contrasts, so its reference level is not among the coefficients.}
 
 \item{threshold}{Selected fraction in \verb{(0, 1)}; \code{0.20} = top 20\%. Ignored when
 \code{pair = TRUE}.}

@@ -15,7 +15,11 @@ when back-solving a GBLUP fit; for a \code{mrk()} fit the training markers store
 in the fit are used automatically, and a RR-BLUP fit ignores \code{M}.}
 
 \item{term}{Genomic term identifier (label or key). Defaults to the first
-genomic term.}
+genomic term. For a genomic \strong{random-regression} term
+(\code{mrk(gen, M):leg(x, q)}) the marker effects are returned \strong{per \code{leg()}
+degree}: one effect per marker per degree, with markers suffixed \verb{:deg\{j\}}
+when \code{q > 1} (the intercept marker effects come from the genomic main-effect
+term, e.g. \code{solve_SNP(fit, term = "mrk(gen, M)")}).}
 
 \item{prob}{Central credible-interval mass (default 0.95).}
 }
@@ -45,6 +49,9 @@ regime in which \code{mrk()} selects GBLUP.
 \donttest{
 snp <- solve_SNP(fit)      # marker effects (back-solved for GBLUP, direct for RR-BLUP)
 head(snp[order(-abs(snp$effect)), ])
+# genomic random regression: intercept vs slope marker effects
+int_snp   <- solve_SNP(fit, term = "mrk(gen, M)")            # intercept
+slope_snp <- solve_SNP(fit, term = "mrk(gen, M):leg(x, 1)")  # slope (deg1)
 }
 }
 \seealso{
