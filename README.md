@@ -1,5 +1,9 @@
 # breedRBayes
 
+<p align="center">
+  <img src="man/figures/logo.png" alt="breedRBayes logo" width="280" />
+</p>
+
 **An ASReml-style formula front-end for the [BGLR](https://cran.r-project.org/package=BGLR) Bayesian engine.**
 
 `breedRBayes` lets you describe Bayesian mixed models with the familiar
