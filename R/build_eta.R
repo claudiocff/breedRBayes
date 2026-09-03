@@ -17,8 +17,11 @@
 }
 
 #' Build the design + metadata for a single interaction component
+#' @param exp_var Explained-variance target for the genomic PC rotation (GBLUP
+#'   `vm()` / `mrk()`); `NA` keeps every non-null component. An explicit integer
+#'   `rank` inside `mrk()` overrides it.
 #' @keywords internal
-.component_design <- function(comp, data, relmat, role) {
+.component_design <- function(comp, data, relmat, role, exp_var = NA_real_) {
   switch(comp$type,
     factor = {
       if (identical(role, "fixed")) {
@@ -42,7 +45,7 @@
       }
       lev <- intersect(colnames(K), unique(as.character(data[[comp$var]])))
       K <- K[lev, lev, drop = FALSE]
-      rot <- .pc_rotation(K)
+      rot <- .pc_rotation(K, exp_var = exp_var)
       X <- .expand_rows(rot$PC, data[[comp$var]], lev)   # incidence %*% PC, as a row-gather
       colnames(X) <- if (ncol(X) == length(lev)) lev else paste0("PC", seq_len(ncol(X)))
       list(X = X, meta = list(kind = "vm", var = comp$var, relmat = comp$relmat,
@@ -81,7 +84,7 @@
         # RSpectra is available). A small ridge shifts every eigenvalue up so G is
         # positive-definite (duplicate genotypes / p = n / collinear markers). The
         # eigenpairs of Mc Mc' are cached for the marker back-solve (solve_SNP/predict).
-        rot  <- .gblup_rotation(Mc, cc, rank = comp$rank)
+        rot  <- .gblup_rotation(Mc, cc, rank = comp$rank, exp_var = exp_var)
         X    <- .expand_rows(rot$PC, data[[comp$var]], lev)  # incidence %*% PC, as a row-gather
         colnames(X) <- if (ncol(X) == length(lev)) lev else paste0("PC", seq_len(ncol(X)))
         bmap <- rot$PC
@@ -129,9 +132,10 @@
 
 #' Build one ETA entry (design + BGLR model) for a whole term
 #' @keywords internal
-.term_eta <- function(term, data, relmat) {
+.term_eta <- function(term, data, relmat, exp_var = NA_real_) {
   comp_designs <- lapply(term$components, .component_design,
-                         data = data, relmat = relmat, role = term$role)
+                         data = data, relmat = relmat, role = term$role,
+                         exp_var = exp_var)
   X <- comp_designs[[1]]$X
   if (length(comp_designs) > 1L) {
     for (i in 2:length(comp_designs)) X <- .khatri_rao_rows(X, comp_designs[[i]]$X)
@@ -181,12 +185,16 @@
 #' @param parsed A `breedRB_terms` object from [parse_model()].
 #' @param data Model data frame.
 #' @param relmat Named list of relationship / covariance matrices for `vm()`.
+#' @param exp_var Explained-variance target for the genomic PC rotation of
+#'   GBLUP-style terms (see [bbglr_control()]); `NA` keeps every non-null
+#'   component.
 #' @return A list with `ETA` (the BGLR ETA list) and `meta` (per-term metadata,
 #'   named by a safe key) plus `group` (residual grouping vector or `NULL`).
 #' @keywords internal
-build_eta <- function(parsed, data, relmat = list()) {
+build_eta <- function(parsed, data, relmat = list(), exp_var = NA_real_) {
   all_terms <- c(parsed$fixed, parsed$random)
-  built <- lapply(all_terms, .term_eta, data = data, relmat = relmat)
+  built <- lapply(all_terms, .term_eta, data = data, relmat = relmat,
+                  exp_var = exp_var)
 
   keys <- make.unique(gsub("[^A-Za-z0-9]", "_", vapply(built, function(b) b$meta$label,
                                                        character(1))))

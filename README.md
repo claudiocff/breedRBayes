@@ -22,6 +22,8 @@ distributions, genetic correlations, and Markov-chain convergence diagnostics.
     covariance and genetic correlations.
   - **Factor-analytic** — `fa(gen, k)` / `rrc(gen, k)` reduced-rank genetic
     covariance.
+- **One control object** — MCMC settings and model hyperparameters (including the
+  genomic low-rank target) live in `bbglr_control()`, keeping the main call short.
 - **Multiple chains** for Gelman–Rubin R-hat and other diagnostics.
 - **Posterior everything** — `varcomp()`, `heritability()` and `solution()` return
   full posterior draws, not just point estimates.
@@ -82,10 +84,10 @@ dat$yield <- g[dat$gen, 1] + rnorm(nrow(dat), 0, 3)
 ## mrk() takes the marker matrix directly and auto-selects GBLUP or RR-BLUP.
 fit <- bbglr(
   yield ~ 1,
-  random = ~ mrk(gen, M),
-  data   = dat,
-  relmat = list(M = M[train, ]),
-  nIter  = 6000, burnIn = 2000, nChains = 2
+  random  = ~ mrk(gen, M),
+  data    = dat,
+  relmat  = list(M = M[train, ]),
+  control = bbglr_control(nIter = 6000, burnIn = 2000, nChains = 2)
 )
 
 varcomp(fit)                          # posterior variance components
@@ -108,6 +110,28 @@ solve_SNP(fit)
 plot_trace(fit)       # chain trace plots
 plot_posterior(heritability(fit))
 ```
+
+### Controlling the fit
+
+MCMC settings and model hyperparameters are bundled in `bbglr_control()`, so the
+main `bbglr()` call stays focused on the model:
+
+```r
+ctrl <- bbglr_control(
+  nIter        = 20000,   # total iterations
+  burnIn       = 5000,    # burn-in
+  thin         = 10,      # thinning interval
+  nChains      = 4,       # independent chains (enables R-hat)
+  seed         = 1,       # base seed (chain c uses seed + c - 1)
+  exp_var_rank = 0.99     # genomic low-rank target (fraction of variance kept)
+)
+fit <- bbglr(yield ~ 1, random = ~ mrk(gen, M), data = dat, relmat = list(M = M),
+             control = ctrl)
+```
+
+The individual settings may also be passed straight to `bbglr()` as a shortcut
+(`bbglr(..., nIter = 20000)`); they override the corresponding value in
+`control`. `exp_var_rank` is described under low-rank GBLUP below.
 
 ### Extracting solutions for any term
 
@@ -153,12 +177,26 @@ solution(fit, term = "mrk(gen, M)", type = "random")   # genomic breeding values
 ```
 
 **Large genotype panels — low-rank GBLUP.** For many genotypes the `n × n`
-relationship and its eigendecomposition dominate the cost. `mrk(gen, M, rank = k)`
-fits a **rank-`k` PC-GBLUP**: only the top `k` principal components of the
-genomic relationship are kept, shrinking the design to `k` columns. With the
-optional **RSpectra** package installed, those components are computed straight
-from the markers (`svds`) — the full `n × n` matrix is *never formed* — which is
-much cheaper for large `n`. `predict()` and `solve_SNP()` reuse the same cached
+relationship and its eigendecomposition dominate the cost, so GBLUP is fitted in
+a **low-rank principal-component basis**. By default the rank is chosen to
+explain 99% of the genomic variance (`bbglr_control(exp_var_rank = 0.99)`): the
+long tail of numerically-tiny components — which carry almost no genetic signal —
+is dropped, shrinking the design and speeding up sampling while retaining
+essentially all of the information. Lower the target for a more aggressive
+approximation, or set `exp_var_rank = NA` to keep every component:
+
+```r
+# self-scaling default (99% of variance); tune it through the control object
+fit <- bbglr(yield ~ 1, random = ~ mrk(gen, M), data = dat, relmat = list(M = M),
+             control = bbglr_control(exp_var_rank = 0.95))
+```
+
+For a **fixed** number of components, pass `rank = k` directly to `mrk()`; this
+overrides `exp_var_rank` for that term. With the optional **RSpectra** package
+installed, an explicit `rank` is computed straight from the markers (`svds`) — the
+full `n × n` matrix is *never formed* — which is much cheaper for very large `n`
+(the `exp_var_rank` route needs the full spectrum, so prefer an explicit `rank`
+on very large panels). `predict()` and `solve_SNP()` reuse the same cached
 rotation, so scoring and marker back-solving stay fast:
 
 ```r

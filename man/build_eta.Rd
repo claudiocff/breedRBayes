@@ -4,7 +4,7 @@
 \alias{build_eta}
 \title{Assemble the full BGLR ETA list from parsed model terms}
 \usage{
-build_eta(parsed, data, relmat = list())
+build_eta(parsed, data, relmat = list(), exp_var = NA_real_)
 }
 \arguments{
 \item{parsed}{A \code{breedRB_terms} object from \code{\link[=parse_model]{parse_model()}}.}
@@ -12,6 +12,10 @@ build_eta(parsed, data, relmat = list())
 \item{data}{Model data frame.}
 
 \item{relmat}{Named list of relationship / covariance matrices for \code{vm()}.}
+
+\item{exp_var}{Explained-variance target for the genomic PC rotation of
+GBLUP-style terms (see \code{\link[=bbglr_control]{bbglr_control()}}); \code{NA} keeps every non-null
+component.}
 }
 \value{
 A list with \code{ETA} (the BGLR ETA list) and \code{meta} (per-term metadata,

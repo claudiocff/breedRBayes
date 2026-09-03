@@ -36,12 +36,12 @@
 #'   and adds a tiny diagonal ridge so `G` is always non-singular. For `vm()` the entry is a covariance / kernel matrix
 #'   (K, not its inverse) — genomic, pedigree, environmic or any custom kernel —
 #'   with row/column names matching the factor levels.
-#' @param nIter,burnIn,thin MCMC controls passed to BGLR.
-#' @param nChains Integer number of independent chains (distinct seeds). Enables
-#'   Gelman-Rubin diagnostics when `> 1`.
-#' @param seed Base random seed; chain `c` uses `seed + c - 1`.
-#' @param saveAt Directory for BGLR binary output. Defaults to a fresh temp dir.
-#' @param verbose Logical; print BGLR progress.
+#' @param control A [bbglr_control()] object bundling the MCMC controls (`nIter`,
+#'   `burnIn`, `thin`, `nChains`, `seed`, `saveAt`, `verbose`) and model
+#'   hyperparameters (`exp_var_rank`, the explained-variance target for the
+#'   genomic low-rank rotation).
+#' @param ... Individual [bbglr_control()] settings passed directly as a shortcut
+#'   (e.g. `nIter = 20000`); they override the corresponding value in `control`.
 #'
 #' @return An object of class `breedRB_fit`.
 #' @examples
@@ -49,20 +49,44 @@
 #' G <- readRDS(system.file("extdata", "kinship.matrix.rds", package = "breedRBayes"))
 #' dat <- read.csv(system.file("extdata", "data_soy.csv", package = "breedRBayes"))
 #' fit <- bbglr(yield ~ 1 + env, random = ~ vm(gen, G), data = dat,
-#'              relmat = list(G = G), nIter = 2000, burnIn = 500, nChains = 2)
+#'              relmat = list(G = G),
+#'              control = bbglr_control(nIter = 2000, burnIn = 500, nChains = 2))
 #' }
+#' @seealso [bbglr_control()] for the available control settings.
 #' @export
 bbglr <- function(fixed, random = NULL, residual = NULL, data,
-                  relmat = list(), nIter = 5000, burnIn = 1000, thin = 5,
-                  nChains = 1, seed = 123, saveAt = NULL, verbose = TRUE) {
+                  relmat = list(), control = bbglr_control(), ...) {
 
   cl <- match.call()
+
+  # Accept individual control settings passed directly (back-compat + shortcut),
+  # merging them over the supplied/defaulted control object.
+  dots <- list(...)
+  if (length(dots)) {
+    ctrl_args <- names(formals(bbglr_control))
+    bad <- setdiff(names(dots), ctrl_args)
+    if (length(bad)) {
+      stop("Unknown argument(s) to bbglr(): ", paste(bad, collapse = ", "),
+           ". Set model controls via control = bbglr_control(...).", call. = FALSE)
+    }
+    control <- do.call(bbglr_control,
+                       utils::modifyList(unclass(control)[ctrl_args], dots))
+  }
+  if (!inherits(control, "breedRB_control")) {
+    control <- do.call(bbglr_control, as.list(control))
+  }
+
+  nIter   <- control$nIter;   burnIn <- control$burnIn; thin    <- control$thin
+  nChains <- control$nChains; seed   <- control$seed;   verbose <- control$verbose
+  saveAt  <- control$saveAt
+  exp_var <- if (is.na(control$exp_var_rank)) NA_real_ else control$exp_var_rank
+
   RhpcBLASctl::blas_set_num_threads(1)
   data <- droplevels(as.data.frame(data))
 
   parsed <- parse_model(fixed, random, residual)
   data   <- .filter_to_relmat(parsed, data, relmat)
-  built  <- build_eta(parsed, data, relmat)
+  built  <- build_eta(parsed, data, relmat, exp_var = exp_var)
 
   # response
   if (parsed$response$multitrait) {
@@ -91,6 +115,7 @@ bbglr <- function(fixed, random = NULL, residual = NULL, data,
 
   if (is.null(saveAt)) saveAt <- tempfile(pattern = "breedRBayes_")
   dir.create(saveAt, showWarnings = FALSE, recursive = TRUE)
+  control$saveAt <- saveAt                       # record the resolved output directory
 
   chains <- vector("list", nChains)
   paths  <- character(nChains)
@@ -121,8 +146,7 @@ bbglr <- function(fixed, random = NULL, residual = NULL, data,
       data     = data,
       relmat   = relmat,
       response = parsed$response,
-      control  = list(nIter = nIter, burnIn = burnIn, thin = thin,
-                      nChains = nChains, seed = seed, saveAt = saveAt)
+      control  = control
     ),
     class = "breedRB_fit"
   )

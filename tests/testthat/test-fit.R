@@ -260,6 +260,65 @@ test_that("predict_pr() gives P(new genotype beats the training-population bar)"
   expect_true(all(pp_low$prob >= 0 & pp_low$prob <= 1))
 })
 
+test_that("exp_var_rank truncates GBLUP by explained variance and is controllable", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  sim <- simulate_markers(n_gen = 60, n_mrk = 300)
+
+  # default control: rank chosen to explain 99% of the genomic variance -> < n
+  fit99 <- bbglr(y ~ 1, random = ~ mrk(gen, M), data = sim$data,
+                 relmat = list(M = sim$M),
+                 control = bbglr_control(nIter = 2000, burnIn = 800, nChains = 1,
+                                         verbose = FALSE))
+  key <- .vm_keys(fit99)
+  r99 <- ncol(fit99$meta[[key]]$components[[1]]$bmap)
+  expect_equal(fit99$control$exp_var_rank, 0.99)
+  expect_lt(r99, nrow(sim$M))                       # some tail components dropped
+  s99 <- solution(fit99, term = key, type = "random")
+  expect_gt(cor(s99$solution, sim$gv[s99$effect]), 0.8)   # signal retained
+
+  # a looser target keeps fewer components than a tighter one
+  fit90 <- bbglr(y ~ 1, random = ~ mrk(gen, M), data = sim$data,
+                 relmat = list(M = sim$M),
+                 control = bbglr_control(nIter = 1500, burnIn = 600, nChains = 1,
+                                         verbose = FALSE, exp_var_rank = 0.90))
+  r90 <- ncol(fit90$meta[[key]]$components[[1]]$bmap)
+  expect_lte(r90, r99)
+
+  # exp_var_rank = NA keeps every non-null component (full rank here)
+  fitfull <- bbglr(y ~ 1, random = ~ mrk(gen, M), data = sim$data,
+                   relmat = list(M = sim$M),
+                   control = bbglr_control(nIter = 1500, burnIn = 600, nChains = 1,
+                                           verbose = FALSE, exp_var_rank = NA))
+  expect_gt(ncol(fitfull$meta[[key]]$components[[1]]$bmap), r99)
+
+  # an explicit rank inside mrk() overrides exp_var_rank
+  fitk <- bbglr(y ~ 1, random = ~ mrk(gen, M, rank = 15), data = sim$data,
+                relmat = list(M = sim$M),
+                control = bbglr_control(nIter = 1200, burnIn = 500, nChains = 1,
+                                        verbose = FALSE))
+  expect_equal(ncol(fitk$meta[[.vm_keys(fitk)]]$components[[1]]$bmap), 15L)
+})
+
+test_that("legacy loose control arguments still work and override control", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  sim <- simulate_markers(n_gen = 40, n_mrk = 200)
+  # old call style: MCMC settings passed directly instead of via control =
+  fit <- bbglr(y ~ 1, random = ~ mrk(gen, M), data = sim$data,
+               relmat = list(M = sim$M), nIter = 2000, burnIn = 700, thin = 5,
+               nChains = 1, verbose = FALSE)
+  expect_s3_class(fit$control, "breedRB_control")
+  expect_equal(fit$control$nIter, 2000L)
+  expect_equal(fit$control$burnIn, 700L)
+  # an unknown argument is rejected with a helpful message
+  expect_error(
+    bbglr(y ~ 1, random = ~ mrk(gen, M), data = sim$data,
+          relmat = list(M = sim$M), notArg = 3),
+    "Unknown argument"
+  )
+})
+
 test_that("mrk() auto-selects RR-BLUP when genotypes > markers and solve_SNP reads fitted effects", {
   skip_on_cran()
   skip_if_not_installed("BGLR")

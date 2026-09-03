@@ -4,7 +4,7 @@
 \alias{.term_eta}
 \title{Build one ETA entry (design + BGLR model) for a whole term}
 \usage{
-.term_eta(term, data, relmat)
+.term_eta(term, data, relmat, exp_var = NA_real_)
 }
 \description{
 Build one ETA entry (design + BGLR model) for a whole term

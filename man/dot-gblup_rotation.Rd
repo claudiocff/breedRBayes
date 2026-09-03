@@ -4,7 +4,7 @@
 \alias{.gblup_rotation}
 \title{GBLUP principal-component rotation built directly from a marker matrix}
 \usage{
-.gblup_rotation(Mc, cc, rank = NA_integer_, tol = 1e-08)
+.gblup_rotation(Mc, cc, rank = NA_integer_, exp_var = NA_real_, tol = 1e-08)
 }
 \arguments{
 \item{Mc}{Column-centred marker matrix (\code{n} genotypes x \code{p} markers), row
@@ -12,7 +12,16 @@ names = genotype IDs.}
 
 \item{cc}{VanRaden scaling \verb{2 * sum(p_j q_j)}.}
 
-\item{rank}{Optional integer; keep only the top \code{rank} directions.}
+\item{rank}{Optional integer; keep only the top \code{rank} directions. When given
+(and \pkg{RSpectra} is available) the components are computed straight from
+\code{Mc} without forming \verb{Mc Mc'}.}
+
+\item{exp_var}{Optional explained-variance target in \verb{(0, 1]}; when \code{rank} is
+not given, keep the smallest set of leading components accounting for at
+least this fraction of the total genomic variance. Needs the full spectrum,
+so it eigendecomposes \verb{Mc Mc'} (fine up to a few thousand genotypes; for
+larger panels pass an integer \code{rank} to use the \pkg{RSpectra} path). \code{NA}
+(default) keeps every non-null component.}
 
 \item{tol}{Eigenvalue tolerance for dropping null directions.}
 }

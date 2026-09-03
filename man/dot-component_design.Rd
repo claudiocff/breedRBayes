@@ -4,7 +4,12 @@
 \alias{.component_design}
 \title{Build the design + metadata for a single interaction component}
 \usage{
-.component_design(comp, data, relmat, role)
+.component_design(comp, data, relmat, role, exp_var = NA_real_)
+}
+\arguments{
+\item{exp_var}{Explained-variance target for the genomic PC rotation (GBLUP
+\code{vm()} / \code{mrk()}); \code{NA} keeps every non-null component. An explicit integer
+\code{rank} inside \code{mrk()} overrides it.}
 }
 \description{
 Build the design + metadata for a single interaction component

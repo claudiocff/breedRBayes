@@ -10,13 +10,8 @@ bbglr(
   residual = NULL,
   data,
   relmat = list(),
-  nIter = 5000,
-  burnIn = 1000,
-  thin = 5,
-  nChains = 1,
-  seed = 123,
-  saveAt = NULL,
-  verbose = TRUE
+  control = bbglr_control(),
+  ...
 )
 }
 \arguments{
@@ -56,16 +51,13 @@ and adds a tiny diagonal ridge so \code{G} is always non-singular. For \code{vm(
 (K, not its inverse) — genomic, pedigree, environmic or any custom kernel —
 with row/column names matching the factor levels.}
 
-\item{nIter, burnIn, thin}{MCMC controls passed to BGLR.}
+\item{control}{A \code{\link[=bbglr_control]{bbglr_control()}} object bundling the MCMC controls (\code{nIter},
+\code{burnIn}, \code{thin}, \code{nChains}, \code{seed}, \code{saveAt}, \code{verbose}) and model
+hyperparameters (\code{exp_var_rank}, the explained-variance target for the
+genomic low-rank rotation).}
 
-\item{nChains}{Integer number of independent chains (distinct seeds). Enables
-Gelman-Rubin diagnostics when \verb{> 1}.}
-
-\item{seed}{Base random seed; chain \code{c} uses \code{seed + c - 1}.}
-
-\item{saveAt}{Directory for BGLR binary output. Defaults to a fresh temp dir.}
-
-\item{verbose}{Logical; print BGLR progress.}
+\item{...}{Individual \code{\link[=bbglr_control]{bbglr_control()}} settings passed directly as a shortcut
+(e.g. \code{nIter = 20000}); they override the corresponding value in \code{control}.}
 }
 \value{
 An object of class \code{breedRB_fit}.
@@ -78,6 +70,10 @@ Fit a Bayesian mixed model with the BGLR engine using asreml-style formulas
 G <- readRDS(system.file("extdata", "kinship.matrix.rds", package = "breedRBayes"))
 dat <- read.csv(system.file("extdata", "data_soy.csv", package = "breedRBayes"))
 fit <- bbglr(yield ~ 1 + env, random = ~ vm(gen, G), data = dat,
-             relmat = list(G = G), nIter = 2000, burnIn = 500, nChains = 2)
+             relmat = list(G = G),
+             control = bbglr_control(nIter = 2000, burnIn = 500, nChains = 2))
 }
+}
+\seealso{
+\code{\link[=bbglr_control]{bbglr_control()}} for the available control settings.
 }
