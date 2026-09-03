@@ -10,10 +10,10 @@
 \item{object}{A \code{breedRB_fit} (single-trait) with a \code{mrk()} genomic term.}
 
 \item{M_new}{Marker matrix for the genotypes to predict: genotype IDs in the
-row names, markers in columns. Must contain every marker used in the fit
-(extra columns are ignored; column order need not match). May include
-training genotypes, in which case the prediction reproduces their fitted
-value.}
+row names, markers in columns. Must contain every marker retained in the fit
+(extra columns are ignored; column order need not match). Missing calls are
+imputed with the training marker means. May include training genotypes, in
+which case the prediction reproduces their fitted value.}
 
 \item{term}{Genomic term identifier (label or key). Defaults to the first
 genomic term.}

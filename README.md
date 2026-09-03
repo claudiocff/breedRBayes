@@ -140,7 +140,8 @@ parameterizations:
 
 Both give the same breeding values and the same heritability; only the compute
 cost differs. Pass `method = "GBLUP"` or `"RRBLUP"` to force one. The marker
-matrix should be coded as **0/1/2** allele dosages.
+matrix should be coded as **0/1/2** allele dosages; missing values are
+mean-imputed per marker and near-constant markers are dropped automatically.
 
 ```r
 fit <- bbglr(yield ~ 1 + env, random = ~ mrk(gen, M), data = dat, relmat = list(M = M))

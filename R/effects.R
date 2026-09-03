@@ -249,8 +249,22 @@ gebv <- function(fit, term = NULL, prob = 0.95) {
     stop("`M` is missing ", length(miss), " genotype(s) present in the fit, e.g. '",
          miss[1], "'.", call. = FALSE)
   }
-  Mc <- scale(M[ids, , drop = FALSE], center = TRUE, scale = FALSE)
-  attr(Mc, "scaled:center") <- NULL
+  mk <- gc$markers
+  if (is.null(mk)) {
+    # vm() fit: no markers were retained by the model, centre the supplied M as-is
+    Mc <- scale(M[ids, , drop = FALSE], center = TRUE, scale = FALSE)
+    attr(Mc, "scaled:center") <- NULL
+  } else {
+    # mrk() fit: reproduce the exact cleaned + centred training markers used to
+    # build G (retained markers only, centred by the training means, NAs imputed).
+    miss_mk <- setdiff(mk, colnames(M))
+    if (length(miss_mk)) {
+      stop("`M` is missing ", length(miss_mk), " marker(s) used in the fit, e.g. '",
+           miss_mk[1], "'.", call. = FALSE)
+    }
+    Mc <- sweep(M[ids, mk, drop = FALSE], 2L, gc$center[mk], "-")
+    Mc[is.na(Mc)] <- 0                                # same mean-imputation as fitting
+  }
   MM   <- tcrossprod(Mc)
   Minv <- solve(MM + diag(1e-8 * mean(diag(MM)), nrow(MM)))   # tiny ridge for stability
   draws <- U %*% (Minv %*% Mc)
@@ -348,10 +362,10 @@ solve_SNP <- function(fit, M = NULL, term = NULL, prob = 0.95) {
 #'
 #' @param object A `breedRB_fit` (single-trait) with a `mrk()` genomic term.
 #' @param M_new Marker matrix for the genotypes to predict: genotype IDs in the
-#'   row names, markers in columns. Must contain every marker used in the fit
-#'   (extra columns are ignored; column order need not match). May include
-#'   training genotypes, in which case the prediction reproduces their fitted
-#'   value.
+#'   row names, markers in columns. Must contain every marker retained in the fit
+#'   (extra columns are ignored; column order need not match). Missing calls are
+#'   imputed with the training marker means. May include training genotypes, in
+#'   which case the prediction reproduces their fitted value.
 #' @param term Genomic term identifier (label or key). Defaults to the first
 #'   genomic term.
 #' @param add_mu Logical (default `TRUE`). Add the model intercept `mu` to every
@@ -412,6 +426,7 @@ predict.breedRB_fit <- function(object, M_new, term = NULL, add_mu = TRUE,
   B  <- .marker_draws(fit, key)                          # [nDraws x nMarker], cols = markers
   Xn <- M_new[, gc$markers, drop = FALSE]                # align to training marker order
   Mc_new <- sweep(Xn, 2L, gc$center[gc$markers], "-")    # centre by TRAINING means
+  Mc_new[is.na(Mc_new)] <- 0                             # impute missing new calls with the training mean
   preds  <- t(Mc_new %*% t(B))                           # [nDraws x nGenotype]
 
   if (isTRUE(add_mu)) {

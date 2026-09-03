@@ -57,7 +57,8 @@
              ") not found in `relmat`.", call. = FALSE)
       }
       lev <- intersect(rownames(M0), unique(as.character(data[[comp$var]])))
-      Mc  <- scale(M0[lev, , drop = FALSE], center = TRUE, scale = FALSE)  # centre markers: Z = M - 2p
+      M1  <- .clean_markers(M0[lev, , drop = FALSE], var_name = comp$var)  # impute NAs, drop constant markers
+      Mc  <- scale(M1, center = TRUE, scale = FALSE)                       # centre markers: Z = M - 2p
       center <- attr(Mc, "scaled:center")         # training column means = 2p (for predicting new genos)
       attr(Mc, "scaled:center") <- NULL
       n <- length(lev); p <- ncol(Mc)

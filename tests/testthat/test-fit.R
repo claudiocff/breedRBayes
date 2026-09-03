@@ -143,6 +143,32 @@ test_that("mrk() GBLUP builds a VanRaden G and stays non-singular with duplicate
   expect_true(all(is.finite(s$solution)))
 })
 
+test_that("mrk() mean-imputes missing markers and drops near-constant markers", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  sim <- simulate_markers(n_gen = 60, n_mrk = 200)
+  M <- sim$M
+  M[cbind(sample(nrow(M), 30), sample(ncol(M), 30))] <- NA   # scattered missing calls
+  M[, 5]  <- 1                                               # two constant markers
+  M[, 10] <- 2
+
+  fit <- bbglr(y ~ 1, random = ~ mrk(gen, M), data = sim$data,
+               relmat = list(M = M), nIter = 2000, burnIn = 800,
+               nChains = 1, verbose = FALSE)
+  key <- .vm_keys(fit)
+  # the two constant markers are dropped; the rest are retained
+  expect_equal(length(fit$meta[[key]]$components[[1]]$markers), ncol(M) - 2L)
+
+  s <- solution(fit, term = key, type = "random")
+  expect_true(all(is.finite(s$solution)))
+  # solve_SNP and predict work despite the original NAs / constant columns
+  snp <- solve_SNP(fit)
+  expect_equal(nrow(snp), ncol(M) - 2L)
+  expect_true(all(is.finite(snp$effect)))
+  pred <- predict(fit, M, add_mu = TRUE)                     # M still carries NAs -> imputed on the fly
+  expect_true(all(is.finite(pred$prediction)))
+})
+
 test_that("predict() scores genotypes held out of training", {
   skip_on_cran()
   skip_if_not_installed("BGLR")

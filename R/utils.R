@@ -58,6 +58,46 @@ legendre_basis <- function(x, order, orthonormal = FALSE) {
   Z
 }
 
+#' Clean a marker matrix before building a genomic model
+#'
+#' Mean-imputes missing values (per marker/column) and drops markers with
+#' (near-)zero variance, so the downstream GBLUP / RR-BLUP construction never
+#' sees `NA`s or constant columns. Markers that are entirely missing become
+#' non-finite after imputation and are dropped alongside the constant ones.
+#'
+#' @param M Numeric marker matrix (genotypes in rows, markers in columns).
+#' @param var_tol Markers with variance below this are treated as constant and
+#'   removed.
+#' @param var_name Factor name, used only for informative messages.
+#' @return The cleaned marker matrix (possibly with fewer columns).
+#' @keywords internal
+.clean_markers <- function(M, var_tol = 1e-8, var_name = "gen") {
+  M <- as.matrix(M)
+  storage.mode(M) <- "double"
+
+  na_idx <- is.na(M)
+  n_na   <- sum(na_idx)
+  if (n_na) {                                   # mean-impute each marker's missing calls
+    cm <- colMeans(M, na.rm = TRUE)
+    M[na_idx] <- cm[col(M)[na_idx]]             # all-NA columns -> NaN, dropped below
+  }
+
+  v    <- apply(M, 2L, stats::var)
+  drop <- !is.finite(v) | v < var_tol           # constant / near-constant / all-NA markers
+  n_drop <- sum(drop)
+  if (n_drop) M <- M[, !drop, drop = FALSE]
+
+  if (!ncol(M)) {
+    stop("mrk(", var_name, "): no markers remain after imputing missing values and ",
+         "dropping near-constant markers.", call. = FALSE)
+  }
+  if (n_na || n_drop) {
+    message("mrk(", var_name, "): imputed ", n_na, " missing value(s) (marker means); ",
+            "dropped ", n_drop, " near-constant marker(s).")
+  }
+  M
+}
+
 #' Eigen (principal-component) rotation of a relationship matrix for GBLUP
 #'
 #' Reproduces the eigen-decomposition trick used to fit GBLUP through a Bayesian

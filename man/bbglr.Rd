@@ -43,10 +43,11 @@ factor-analytic. Bare names are factors; \code{a:b} is an interaction.}
 
 \item{relmat}{Named list of matrices referenced by \code{mrk()} and \code{vm()}. For
 \code{mrk()} the entry is a marker matrix with genotypes in rows (row names =
-genotype IDs) and markers in columns, coded as \strong{0/1/2 allele dosages}; in
-GBLUP mode \code{mrk()} builds the genomic relationship internally by VanRaden's
-method 1 (\eqn{G = ZZ'/2\sum p_j q_j}) and adds a tiny diagonal ridge so \code{G}
-is always non-singular. For \code{vm()} the entry is a covariance / kernel matrix
+genotype IDs) and markers in columns, coded as \strong{0/1/2 allele dosages}.
+Missing values are mean-imputed per marker and (near-)constant markers are
+dropped automatically. In GBLUP mode \code{mrk()} then builds the genomic
+relationship internally by VanRaden's method 1 (\eqn{G = ZZ'/2\sum p_j q_j})
+and adds a tiny diagonal ridge so \code{G} is always non-singular. For \code{vm()} the entry is a covariance / kernel matrix
 (K, not its inverse) — genomic, pedigree, environmic or any custom kernel —
 with row/column names matching the factor levels.}
 
