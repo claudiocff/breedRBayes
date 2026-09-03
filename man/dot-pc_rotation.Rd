@@ -4,19 +4,16 @@
 \alias{.pc_rotation}
 \title{Eigen (principal-component) rotation of a relationship matrix for GBLUP}
 \usage{
-.pc_rotation(K, tol = 1e-08, rank = NA_integer_, exp_var = NA_real_)
+.pc_rotation(K, tol = 1e-08, exp_var = NA_real_)
 }
 \arguments{
 \item{K}{Symmetric relationship / covariance matrix (row/col names = levels).}
 
 \item{tol}{Numeric tolerance below which eigenvalues are treated as zero.}
 
-\item{rank}{Optional integer; keep only the top \code{rank} eigenvectors. \code{NA}
-(default) keeps every non-null direction (exact) unless \code{exp_var} is set.}
-
-\item{exp_var}{Optional explained-variance target in \verb{(0, 1]}; when \code{rank} is
-not given, keep the smallest set of leading eigenvectors accounting for at
-least this fraction of the total variance. \code{NA} (default) disables it.}
+\item{exp_var}{Optional explained-variance target in \verb{(0, 1]}: keep the
+smallest set of leading eigenvectors accounting for at least this fraction of
+the total variance. \code{NA} (default) keeps every non-null direction (exact).}
 }
 \value{
 A list with \code{PC} (the rotation, \verb{nLevel x rank}), \code{vectors} and
@@ -31,7 +28,8 @@ incidence-times-\code{PC} design has genotype effects recoverable as
 \details{
 Numerically-null directions (eigenvalue below \code{tol}) are dropped: they carry
 no genetic variance, so an all-zero \code{PC} column would only enlarge the design
-without changing the fit. If \code{rank} is supplied, only the top \code{rank}
-eigenvectors are kept (a low-rank / principal-component GBLUP approximation).
+without changing the fit. If \code{exp_var} is supplied, only the leading
+eigenvectors explaining that fraction of variance are kept (a low-rank /
+principal-component GBLUP approximation).
 }
 \keyword{internal}

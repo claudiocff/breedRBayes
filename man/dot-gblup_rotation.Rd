@@ -4,7 +4,7 @@
 \alias{.gblup_rotation}
 \title{GBLUP principal-component rotation built directly from a marker matrix}
 \usage{
-.gblup_rotation(Mc, cc, rank = NA_integer_, exp_var = NA_real_, tol = 1e-08)
+.gblup_rotation(Mc, cc, exp_var = NA_real_, tol = 1e-08)
 }
 \arguments{
 \item{Mc}{Column-centred marker matrix (\code{n} genotypes x \code{p} markers), row
@@ -12,19 +12,15 @@ names = genotype IDs.}
 
 \item{cc}{VanRaden scaling \verb{2 * sum(p_j q_j)}.}
 
-\item{rank}{Optional integer; keep only the top \code{rank} directions. When given
-(and \pkg{RSpectra} is available) the components are computed straight from
-\code{Mc} without forming \verb{Mc Mc'}.}
-
-\item{exp_var}{Optional explained-variance target in \verb{(0, 1]}; when \code{rank} is
-not given, keep the smallest set of leading components accounting for at
-least this fraction of the total genomic variance. When \pkg{RSpectra} is
-available this is found by growing the top eigenpairs incrementally
-(\code{\link[=.svds_expvar]{.svds_expvar()}}) — the total variance is the trace of \verb{Mc Mc'}, so only
-the leading components are computed and the \verb{n x n} matrix is never formed
-for a low-rank panel. It falls back to a single full eigendecomposition of
-\verb{Mc Mc'} when \pkg{RSpectra} is absent, \code{n} is small, or the target needs
-most of the spectrum. \code{NA} (default) keeps every non-null component.}
+\item{exp_var}{Optional explained-variance target in \verb{(0, 1]}: keep the
+smallest set of leading components accounting for at least this fraction of
+the total genomic variance. When \pkg{RSpectra} is available this is found by
+growing the top eigenpairs incrementally (\code{\link[=.svds_expvar]{.svds_expvar()}}) — the total
+variance is the trace of \verb{Mc Mc'}, so only the leading components are computed
+and the \verb{n x n} matrix is never formed for a low-rank panel. It falls back to
+a single full eigendecomposition of \verb{Mc Mc'} when \pkg{RSpectra} is absent,
+\code{n} is small, or the target needs most of the spectrum. \code{NA} (default) keeps
+every non-null component.}
 
 \item{tol}{Eigenvalue tolerance for dropping null directions.}
 }
@@ -40,10 +36,10 @@ so it can (a) avoid ever forming the \verb{n x n} matrix \code{G} and (b) return
 eigenpairs of \verb{Mc Mc'} for later reuse by the marker back-solve.
 }
 \details{
-When a low \code{rank} is requested and \pkg{RSpectra} is available, the top
-singular vectors of \code{Mc} are computed directly (\code{svds}), so neither \code{G} nor
-\verb{Mc Mc'} is materialised. Otherwise \verb{Mc Mc'} is formed and eigendecomposed.
-The tiny diagonal ridge (\code{1e-6 * mean(diag(G))}) that keeps \code{G}
-positive-definite is applied through the eigenvalues.
+When an \code{exp_var} target is set and \pkg{RSpectra} is available, the required
+leading components are grown incrementally (\code{\link[=.svds_expvar]{.svds_expvar()}}), so neither \code{G}
+nor \verb{Mc Mc'} is materialised for a low-rank panel. Otherwise \verb{Mc Mc'} is formed
+and eigendecomposed. The tiny diagonal ridge (\code{1e-6 * mean(diag(G))}) that
+keeps \code{G} positive-definite is applied through the eigenvalues.
 }
 \keyword{internal}

@@ -18,8 +18,7 @@
 
 #' Build the design + metadata for a single interaction component
 #' @param exp_var Explained-variance target for the genomic PC rotation (GBLUP
-#'   `vm()` / `mrk()`); `NA` keeps every non-null component. An explicit integer
-#'   `rank` inside `mrk()` overrides it.
+#'   `vm()` / `mrk()`); `NA` keeps every non-null component.
 #' @keywords internal
 .component_design <- function(comp, data, relmat, role, exp_var = NA_real_) {
   switch(comp$type,
@@ -80,11 +79,11 @@
       gblup_rot <- NULL
       if (identical(method, "GBLUP")) {
         # VanRaden G = Mc Mc'/cc + ridge, fitted in its PC basis. Built straight
-        # from Mc (avoids forming the n x n G when a low rank is requested and
+        # from Mc (avoids forming the n x n G for a low-rank panel when
         # RSpectra is available). A small ridge shifts every eigenvalue up so G is
         # positive-definite (duplicate genotypes / p = n / collinear markers). The
         # eigenpairs of Mc Mc' are cached for the marker back-solve (solve_SNP/predict).
-        rot  <- .gblup_rotation(Mc, cc, rank = comp$rank, exp_var = exp_var)
+        rot  <- .gblup_rotation(Mc, cc, exp_var = exp_var)
         X    <- .expand_rows(rot$PC, data[[comp$var]], lev)  # incidence %*% PC, as a row-gather
         colnames(X) <- if (ncol(X) == length(lev)) lev else paste0("PC", seq_len(ncol(X)))
         bmap <- rot$PC
@@ -103,7 +102,7 @@
       list(X = X, meta = list(kind = "mrk", var = comp$var, relmat = comp$relmat,
                               levels = lev, method = method, bmap = bmap,
                               markers = colnames(Mc), center = center, c_scale = cc,
-                              rank = comp$rank, gblup_rot = gblup_rot))
+                              gblup_rot = gblup_rot))
     },
     leg = {
       x <- as.numeric(data[[comp$var]])

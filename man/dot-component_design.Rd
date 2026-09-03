@@ -8,8 +8,7 @@
 }
 \arguments{
 \item{exp_var}{Explained-variance target for the genomic PC rotation (GBLUP
-\code{vm()} / \code{mrk()}); \code{NA} keeps every non-null component. An explicit integer
-\code{rank} inside \code{mrk()} overrides it.}
+\code{vm()} / \code{mrk()}); \code{NA} keeps every non-null component.}
 }
 \description{
 Build the design + metadata for a single interaction component

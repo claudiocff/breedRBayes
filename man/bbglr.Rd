@@ -19,15 +19,16 @@ bbglr(
 Use \code{cbind(t1, t2) ~ ...} for a multi-trait model.}
 
 \item{random}{One-sided formula of random terms, e.g. \code{~ mrk(gen, M)}. Special
-functions: \code{mrk(f, M, method, rank)} genomic effect from a \strong{marker matrix}
+functions: \code{mrk(f, M, method)} genomic effect from a \strong{marker matrix}
 \code{M} that automatically fits GBLUP or RR-BLUP, whichever is cheaper (\code{method}
 is \code{"auto"}, \code{"GBLUP"} or \code{"RRBLUP"}; \code{"auto"} picks GBLUP when markers >=
-genotypes, else RR-BLUP — the two are prediction-equivalent). \code{rank} (GBLUP
-only, default all) keeps just the top-\code{rank} principal components of the
-genomic relationship — a low-rank / PC-GBLUP approximation that shrinks the
-design and, when \pkg{RSpectra} is installed, is computed straight from the
-markers without ever forming the \verb{n x n} relationship matrix (much cheaper
-for many genotypes). A \code{mrk()} fit
+genotypes, else RR-BLUP — the two are prediction-equivalent). In GBLUP mode
+the genomic relationship is fitted through a low-rank principal-component
+rotation keeping the leading components that explain \code{exp_var_rank} of the
+genomic variance (see \code{\link[=bbglr_control]{bbglr_control()}}, default 0.99); when \pkg{RSpectra}
+is installed this rotation is computed straight from the markers without ever
+forming the \verb{n x n} relationship matrix (much cheaper for many genotypes). A
+\code{mrk()} fit
 can score new genotypes with \code{\link[=predict.breedRB_fit]{predict.breedRB_fit()}} and recover marker
 effects with \code{\link[=solve_SNP]{solve_SNP()}}; it is the recommended genomic term. \code{vm(f, K)}
 effect of factor \code{f} with a supplied covariance matrix \code{K} — use it for a

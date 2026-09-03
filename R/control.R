@@ -26,8 +26,7 @@
 #'   When \pkg{RSpectra} is available the required components are found by growing
 #'   the top eigenpairs incrementally (the total variance is the free-to-compute
 #'   trace of the relationship), so for a low-rank panel the `n x n` matrix is
-#'   never formed. Set to `1` or `NA` to keep every (non-null) component. An
-#'   explicit integer `rank =` inside `mrk()` overrides this for that term.
+#'   never formed. Set to `1` or `NA` to keep every (non-null) component.
 #' @return A list of class `breedRB_control`.
 #' @examples
 #' bbglr_control(nIter = 20000, burnIn = 5000, exp_var_rank = 0.95)

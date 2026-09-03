@@ -147,28 +147,24 @@ legendre_basis <- function(x, order, orthonormal = FALSE) {
 #'
 #' Numerically-null directions (eigenvalue below `tol`) are dropped: they carry
 #' no genetic variance, so an all-zero `PC` column would only enlarge the design
-#' without changing the fit. If `rank` is supplied, only the top `rank`
-#' eigenvectors are kept (a low-rank / principal-component GBLUP approximation).
+#' without changing the fit. If `exp_var` is supplied, only the leading
+#' eigenvectors explaining that fraction of variance are kept (a low-rank /
+#' principal-component GBLUP approximation).
 #'
 #' @param K Symmetric relationship / covariance matrix (row/col names = levels).
 #' @param tol Numeric tolerance below which eigenvalues are treated as zero.
-#' @param rank Optional integer; keep only the top `rank` eigenvectors. `NA`
-#'   (default) keeps every non-null direction (exact) unless `exp_var` is set.
-#' @param exp_var Optional explained-variance target in `(0, 1]`; when `rank` is
-#'   not given, keep the smallest set of leading eigenvectors accounting for at
-#'   least this fraction of the total variance. `NA` (default) disables it.
+#' @param exp_var Optional explained-variance target in `(0, 1]`: keep the
+#'   smallest set of leading eigenvectors accounting for at least this fraction of
+#'   the total variance. `NA` (default) keeps every non-null direction (exact).
 #' @return A list with `PC` (the rotation, `nLevel x rank`), `vectors` and
 #'   `values` (the retained eigenpairs) and `levels` (row/column names of `K`).
 #' @keywords internal
-.pc_rotation <- function(K, tol = 1e-8, rank = NA_integer_, exp_var = NA_real_) {
+.pc_rotation <- function(K, tol = 1e-8, exp_var = NA_real_) {
   evd  <- eigen(K, symmetric = TRUE)
   vals <- evd$values
   vecs <- evd$vectors
-  if (!is.na(rank) && rank < length(vals)) {           # explicit low-rank truncation
-    keep <- seq_len(max(1L, as.integer(rank)))
-    vals <- vals[keep]; vecs <- vecs[, keep, drop = FALSE]
-  } else if (is.na(rank) && !is.na(exp_var) && exp_var < 1) {
-    k <- .rank_for_expvar(vals, exp_var)               # variance-based truncation
+  if (!is.na(exp_var) && exp_var < 1) {                # variance-based truncation
+    k <- .rank_for_expvar(vals, exp_var)
     vals <- vals[seq_len(k)]; vecs <- vecs[, seq_len(k), drop = FALSE]
   }
   vals[vals < tol] <- 0
@@ -237,49 +233,38 @@ legendre_basis <- function(x, order, orthonormal = FALSE) {
 #' so it can (a) avoid ever forming the `n x n` matrix `G` and (b) return the
 #' eigenpairs of `Mc Mc'` for later reuse by the marker back-solve.
 #'
-#' When a low `rank` is requested and \pkg{RSpectra} is available, the top
-#' singular vectors of `Mc` are computed directly (`svds`), so neither `G` nor
-#' `Mc Mc'` is materialised. Otherwise `Mc Mc'` is formed and eigendecomposed.
-#' The tiny diagonal ridge (`1e-6 * mean(diag(G))`) that keeps `G`
-#' positive-definite is applied through the eigenvalues.
+#' When an `exp_var` target is set and \pkg{RSpectra} is available, the required
+#' leading components are grown incrementally ([.svds_expvar()]), so neither `G`
+#' nor `Mc Mc'` is materialised for a low-rank panel. Otherwise `Mc Mc'` is formed
+#' and eigendecomposed. The tiny diagonal ridge (`1e-6 * mean(diag(G))`) that
+#' keeps `G` positive-definite is applied through the eigenvalues.
 #'
 #' @param Mc Column-centred marker matrix (`n` genotypes x `p` markers), row
 #'   names = genotype IDs.
 #' @param cc VanRaden scaling `2 * sum(p_j q_j)`.
-#' @param rank Optional integer; keep only the top `rank` directions. When given
-#'   (and \pkg{RSpectra} is available) the components are computed straight from
-#'   `Mc` without forming `Mc Mc'`.
-#' @param exp_var Optional explained-variance target in `(0, 1]`; when `rank` is
-#'   not given, keep the smallest set of leading components accounting for at
-#'   least this fraction of the total genomic variance. When \pkg{RSpectra} is
-#'   available this is found by growing the top eigenpairs incrementally
-#'   ([.svds_expvar()]) — the total variance is the trace of `Mc Mc'`, so only
-#'   the leading components are computed and the `n x n` matrix is never formed
-#'   for a low-rank panel. It falls back to a single full eigendecomposition of
-#'   `Mc Mc'` when \pkg{RSpectra} is absent, `n` is small, or the target needs
-#'   most of the spectrum. `NA` (default) keeps every non-null component.
+#' @param exp_var Optional explained-variance target in `(0, 1]`: keep the
+#'   smallest set of leading components accounting for at least this fraction of
+#'   the total genomic variance. When \pkg{RSpectra} is available this is found by
+#'   growing the top eigenpairs incrementally ([.svds_expvar()]) — the total
+#'   variance is the trace of `Mc Mc'`, so only the leading components are computed
+#'   and the `n x n` matrix is never formed for a low-rank panel. It falls back to
+#'   a single full eigendecomposition of `Mc Mc'` when \pkg{RSpectra} is absent,
+#'   `n` is small, or the target needs most of the spectrum. `NA` (default) keeps
+#'   every non-null component.
 #' @param tol Eigenvalue tolerance for dropping null directions.
 #' @return A list with `PC` (rotation `n x r`), `vectors` (eigenvectors of
 #'   `Mc Mc'`), `evals_MM` (its eigenvalues) and `mean_diag_MM`
 #'   (`mean(diag(Mc Mc'))`, needed to reproduce the back-solve ridge).
 #' @keywords internal
-.gblup_rotation <- function(Mc, cc, rank = NA_integer_, exp_var = NA_real_,
-                            tol = 1e-8) {
+.gblup_rotation <- function(Mc, cc, exp_var = NA_real_, tol = 1e-8) {
   n <- nrow(Mc)
   mean_diag_MM <- mean(rowSums(Mc^2))                  # = mean(diag(Mc Mc')), cheap
   total_var    <- mean_diag_MM * n                     # = sum(rowSums(Mc^2)) = sum of all eigvals
   ridge <- 1e-6 * mean_diag_MM / cc                    # == 1e-6 * mean(diag(G))
-  explicit <- !is.na(rank)
-  trunc <- explicit && rank < n
-  want_expvar <- !explicit && !is.na(exp_var) && exp_var < 1
+  want_expvar <- !is.na(exp_var) && exp_var < 1
   V <- NULL; lambda <- NULL
 
-  if (trunc && requireNamespace("RSpectra", quietly = TRUE)) {
-    k  <- max(1L, min(as.integer(rank), n - 1L))       # RSpectra needs k < n
-    sv <- RSpectra::svds(Mc, k)                         # top-k SVD of Mc, no G / Mc Mc' formed
-    V  <- sv$u                                          # left singular vecs = eigenvecs of Mc Mc'
-    lambda <- sv$d^2                                    # eigenvalues of Mc Mc'
-  } else if (want_expvar) {
+  if (want_expvar) {
     # Reach exp_var by growing the top eigenpairs, using the (free) trace as the
     # denominator -> never touches the tail / forms Mc Mc' for a low-rank panel.
     hit <- .svds_expvar(Mc, exp_var, total = total_var)
@@ -291,10 +276,7 @@ legendre_basis <- function(x, order, orthonormal = FALSE) {
     ev <- eigen(MM, symmetric = TRUE)
     V  <- ev$vectors
     lambda <- pmax(ev$values, 0)
-    if (trunc) {                                       # explicit integer rank
-      keep <- seq_len(min(as.integer(rank), n))
-      V <- V[, keep, drop = FALSE]; lambda <- lambda[keep]
-    } else if (want_expvar) {
+    if (want_expvar) {
       k <- .rank_for_expvar(lambda, exp_var)           # variance-based truncation
       V <- V[, seq_len(k), drop = FALSE]; lambda <- lambda[seq_len(k)]
     }

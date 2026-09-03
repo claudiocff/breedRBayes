@@ -13,9 +13,9 @@ distributions, genetic correlations, and Markov-chain convergence diagnostics.
 
 - **One formula interface, four model classes**
   - **GBLUP / fixed / random** — a raw marker matrix via `mrk(gen, M)` (auto
-    GBLUP/RR-BLUP; optional low-rank PC-GBLUP via `rank=`; `predict()` /
-    `predict_pr()` for new genotypes, `solve_SNP()` for effects), or a
-    ready-made relationship matrix via `vm(gen, G)`.
+    GBLUP/RR-BLUP; self-scaling low-rank PC-GBLUP via `exp_var_rank`;
+    `predict()` / `predict_pr()` for new genotypes, `solve_SNP()` for effects),
+    or a ready-made relationship matrix via `vm(gen, G)`.
   - **Random regression / reaction norm** — `leg(x, order)` / `rr(x, order)`
     Legendre bases.
   - **Multi-trait** — `cbind(t1, t2, ...) ~ ...` with unstructured genetic
@@ -200,14 +200,8 @@ dominate, as in real genomic data) only a small `k ≪ n` is ever computed and t
 `n × n` matrix is *never formed*; it falls back to a single full
 eigendecomposition only when the target would need most of the spectrum.
 
-For a **fixed** number of components, pass `rank = k` directly to `mrk()`; this
-overrides `exp_var_rank` for that term and is likewise computed straight from the
-markers (`svds`) without forming `G`. `predict()` and `solve_SNP()` reuse the
-same cached rotation, so scoring and marker back-solving stay fast:
-
-```r
-fit <- bbglr(yield ~ 1, random = ~ mrk(gen, M, rank = 200), data = dat, relmat = list(M = M))
-```
+`predict()` and `solve_SNP()` reuse the same cached rotation, so scoring and
+marker back-solving stay fast.
 
 Because the marker matrix is retained, a `mrk()` fit can **predict new
 genotypes** and **recover marker effects** — a `vm()` fit (below) cannot.
