@@ -18,10 +18,13 @@ names = genotype IDs.}
 
 \item{exp_var}{Optional explained-variance target in \verb{(0, 1]}; when \code{rank} is
 not given, keep the smallest set of leading components accounting for at
-least this fraction of the total genomic variance. Needs the full spectrum,
-so it eigendecomposes \verb{Mc Mc'} (fine up to a few thousand genotypes; for
-larger panels pass an integer \code{rank} to use the \pkg{RSpectra} path). \code{NA}
-(default) keeps every non-null component.}
+least this fraction of the total genomic variance. When \pkg{RSpectra} is
+available this is found by growing the top eigenpairs incrementally
+(\code{\link[=.svds_expvar]{.svds_expvar()}}) — the total variance is the trace of \verb{Mc Mc'}, so only
+the leading components are computed and the \verb{n x n} matrix is never formed
+for a low-rank panel. It falls back to a single full eigendecomposition of
+\verb{Mc Mc'} when \pkg{RSpectra} is absent, \code{n} is small, or the target needs
+most of the spectrum. \code{NA} (default) keeps every non-null component.}
 
 \item{tol}{Eigenvalue tolerance for dropping null directions.}
 }

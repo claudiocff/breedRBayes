@@ -35,8 +35,11 @@ set of leading principal components of the genomic relationship that together
 explain at least this fraction of its total variance (default \code{0.99}), giving
 a principled, self-scaling low-rank / PC-GBLUP fit that shrinks the design
 and speeds up sampling while retaining essentially all of the genetic signal.
-Set to \code{1} or \code{NA} to keep every (non-null) component. An explicit integer
-\verb{rank =} inside \code{mrk()} overrides this for that term.}
+When \pkg{RSpectra} is available the required components are found by growing
+the top eigenpairs incrementally (the total variance is the free-to-compute
+trace of the relationship), so for a low-rank panel the \verb{n x n} matrix is
+never formed. Set to \code{1} or \code{NA} to keep every (non-null) component. An
+explicit integer \verb{rank =} inside \code{mrk()} overrides this for that term.}
 }
 \value{
 A list of class \code{breedRB_control}.

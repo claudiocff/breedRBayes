@@ -191,13 +191,19 @@ fit <- bbglr(yield ~ 1, random = ~ mrk(gen, M), data = dat, relmat = list(M = M)
              control = bbglr_control(exp_var_rank = 0.95))
 ```
 
+The `exp_var_rank` search does **not** need the full spectrum. The total genomic
+variance is the trace of the relationship — `Σ rowSums(Mc²)`, free to compute —
+so it is the exact denominator up front; with **RSpectra** installed the leading
+components are then grown incrementally (`svds`) and the search stops as soon as
+their cumulative share crosses the target. For a low-rank panel (a handful of PCs
+dominate, as in real genomic data) only a small `k ≪ n` is ever computed and the
+`n × n` matrix is *never formed*; it falls back to a single full
+eigendecomposition only when the target would need most of the spectrum.
+
 For a **fixed** number of components, pass `rank = k` directly to `mrk()`; this
-overrides `exp_var_rank` for that term. With the optional **RSpectra** package
-installed, an explicit `rank` is computed straight from the markers (`svds`) — the
-full `n × n` matrix is *never formed* — which is much cheaper for very large `n`
-(the `exp_var_rank` route needs the full spectrum, so prefer an explicit `rank`
-on very large panels). `predict()` and `solve_SNP()` reuse the same cached
-rotation, so scoring and marker back-solving stay fast:
+overrides `exp_var_rank` for that term and is likewise computed straight from the
+markers (`svds`) without forming `G`. `predict()` and `solve_SNP()` reuse the
+same cached rotation, so scoring and marker back-solving stay fast:
 
 ```r
 fit <- bbglr(yield ~ 1, random = ~ mrk(gen, M, rank = 200), data = dat, relmat = list(M = M))
