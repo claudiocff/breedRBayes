@@ -9,21 +9,22 @@
 #'   draws. Kept per-chain so the intercept can be aligned before pooling.
 #' @keywords internal
 .solution_random <- function(fit, key, meta) {
-  comps <- meta$components
-  is_vm_single <- length(comps) == 1L && identical(comps[[1]]$kind, "vm")
-  has_vm       <- any(vapply(comps, function(c) identical(c$kind, "vm"), logical(1)))
+  comps    <- meta$components
+  is_geno  <- function(c) c$kind %in% c("vm", "mrk")
+  single_g <- length(comps) == 1L && is_geno(comps[[1]])
+  has_geno <- any(vapply(comps, is_geno, logical(1)))
 
   lapply(fit$paths, function(prefix) {
     b <- BGLR::readBinMat(paste0(prefix, "ETA_", key, "_b.bin"))   # [nSamples x p]
-    if (is_vm_single) {
-      PC  <- comps[[1]]$pc
-      out <- b %*% t(PC)                                           # PC space -> levels
-      colnames(out) <- rownames(PC)
+    if (single_g) {
+      bmap <- comps[[1]]$bmap                                      # PC (GBLUP) or markers (RRBLUP)
+      out  <- b %*% t(bmap)                                        # -> per-genotype values
+      colnames(out) <- rownames(bmap)
       out
     } else {
-      if (has_vm) {
-        warning("Term '", meta$label, "' has a vm() component inside an interaction; ",
-                "the returned coordinates are in the genomic PC basis, not per-genotype. ",
+      if (has_geno) {
+        warning("Term '", meta$label, "' has a genomic component inside an interaction; ",
+                "the returned coordinates are in the fitted basis, not per-genotype. ",
                 "Use gebv() on the genomic main effect for breeding values.",
                 call. = FALSE)
       }
@@ -197,9 +198,9 @@ gebv <- function(fit, term = NULL, prob = 0.95) {
   }
   key  <- .resolve_term(fit, term)
   meta <- fit$meta[[key]]
-  vmc  <- Filter(function(c) identical(c$kind, "vm"), meta$components)
+  vmc  <- Filter(function(c) c$kind %in% c("vm", "mrk"), meta$components)
   if (!length(vmc)) {
-    stop("Term '", term, "' has no vm() genomic component. Use ",
+    stop("Term '", term, "' has no vm()/mrk() genomic component. Use ",
          "solution(fit, term = \"", term, "\", type = \"random\") for its BLUPs instead.",
          call. = FALSE)
   }
@@ -207,5 +208,107 @@ gebv <- function(fit, term = NULL, prob = 0.95) {
   out <- solution(fit, term = key, type = "random", prob = prob)
   names(out)[names(out) == "effect"]   <- "ID"
   names(out)[names(out) == "solution"] <- "gebv"
+  out
+}
+
+#' Marker (SNP) effects from a genomic model
+#'
+#' Recovers the posterior distribution of per-marker allele-substitution effects
+#' \eqn{b} on the centred-marker scale, such that the genomic breeding values
+#' satisfy \eqn{GEBV = M_c\, b} (where \eqn{M_c} is the column-centred marker
+#' matrix). This lets a **GBLUP** fit — which estimates breeding values rather
+#' than marker effects — be back-transformed to marker effects:
+#' \deqn{b = M_c^\top (M_c M_c^\top)^{-1}\, u}
+#' applied to every posterior draw of the breeding values \eqn{u}. For a
+#' **RR-BLUP** fit (`mrk()` chose RR-BLUP because genotypes outnumbered markers)
+#' the marker effects are estimated directly and are simply rescaled and returned.
+#'
+#' The back-transform requires \eqn{M_c M_c^\top} to be invertible, which holds
+#' when the number of markers is at least the number of genotypes — exactly the
+#' regime in which `mrk()` selects GBLUP.
+#'
+#' @param fit A `breedRB_fit` (single-trait) with a `vm()` or `mrk()` genomic term.
+#' @param M Marker matrix with genotypes in rows (row names matching the genotype
+#'   IDs) and markers in columns. Required for a GBLUP fit; optional for a
+#'   RR-BLUP fit (marker names are taken from the fit).
+#' @param term Genomic term identifier (label or key). Defaults to the first
+#'   genomic term.
+#' @param prob Central credible-interval mass (default 0.95).
+#' @return A data frame with `marker`, `effect` (posterior mean), `sd`, `lower`,
+#'   `upper`, in marker (design) order, with the pooled draws matrix
+#'   (`nDraws x nMarker`) attached as attribute `"draws"` and the fitted method
+#'   as attribute `"method"`.
+#' @examples
+#' \donttest{
+#' snp <- solve_SNP(fit, M)   # back-solve marker effects from a GBLUP fit
+#' head(snp[order(-abs(snp$effect)), ])
+#' }
+#' @seealso [gebv()], [solution()].
+#' @export
+solve_SNP <- function(fit, M = NULL, term = NULL, prob = 0.95) {
+  stopifnot(inherits(fit, "breedRB_fit"))
+  if (isTRUE(fit$response$multitrait)) {
+    stop("solve_SNP() currently supports single-trait fits.", call. = FALSE)
+  }
+  if (is.null(term)) {
+    vk <- .vm_keys(fit)
+    if (!length(vk)) {
+      stop("No vm()/mrk() genomic term found in the fit.", call. = FALSE)
+    }
+    term <- vk[1]
+  }
+  key   <- .resolve_term(fit, term)
+  meta  <- fit$meta[[key]]
+  gcomp <- Filter(function(c) c$kind %in% c("vm", "mrk"), meta$components)
+  if (!length(gcomp)) {
+    stop("Term '", term, "' has no vm()/mrk() genomic component.", call. = FALSE)
+  }
+  gc     <- gcomp[[1]]
+  method <- if (!is.null(gc$method)) gc$method else "GBLUP"
+
+  if (identical(method, "RRBLUP")) {
+    # Marker effects were fitted directly on the design Mc / sqrt(c); rescale to
+    # the centred-marker scale so that GEBV = Mc %*% b.
+    draws <- do.call(rbind, lapply(fit$paths, function(prefix)
+      BGLR::readBinMat(paste0(prefix, "ETA_", key, "_b.bin"))))
+    draws <- draws / sqrt(gc$c_scale)
+    colnames(draws) <- gc$markers
+  } else {
+    # GBLUP: back-solve b = Mc' (Mc Mc')^{-1} u for each draw of u (per-genotype).
+    if (is.null(M)) {
+      stop("`M` (marker matrix) is required to back-solve SNP effects from a GBLUP fit.",
+           call. = FALSE)
+    }
+    M <- as.matrix(M)
+    if (is.null(rownames(M))) {
+      stop("`M` must have genotype IDs as row names.", call. = FALSE)
+    }
+    sol <- solution(fit, term = key, type = "random", prob = prob)
+    U   <- attr(sol, "draws")                       # [nDraws x nGen]
+    ids <- colnames(U)
+    miss <- setdiff(ids, rownames(M))
+    if (length(miss)) {
+      stop("`M` is missing ", length(miss), " genotype(s) present in the fit, e.g. '",
+           miss[1], "'.", call. = FALSE)
+    }
+    Mc <- scale(M[ids, , drop = FALSE], center = TRUE, scale = FALSE)
+    attr(Mc, "scaled:center") <- NULL
+    MM   <- tcrossprod(Mc)
+    Minv <- solve(MM + diag(1e-8 * mean(diag(MM)), nrow(MM)))   # tiny ridge for stability
+    draws <- U %*% (Minv %*% Mc)                    # [nDraws x nMarker]
+    colnames(draws) <- colnames(Mc)
+  }
+
+  a <- (1 - prob) / 2
+  out <- data.frame(
+    marker = colnames(draws),
+    effect = colMeans(draws),
+    sd     = apply(draws, 2, stats::sd),
+    lower  = apply(draws, 2, stats::quantile, probs = a),
+    upper  = apply(draws, 2, stats::quantile, probs = 1 - a),
+    row.names = NULL
+  )
+  attr(out, "draws")  <- draws
+  attr(out, "method") <- method
   out
 }

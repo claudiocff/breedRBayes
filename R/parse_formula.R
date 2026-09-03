@@ -10,6 +10,8 @@
 # A component spec is one of:
 #   list(type = "factor",    var = <name>, center = <lgl>)
 #   list(type = "vm",        var = <name>, relmat = <key>)   # genomic / GBLUP
+#   list(type = "mrk",       var = <name>, relmat = <key>, method = <chr>)
+#                                                            # markers, auto GBLUP/RRBLUP
 #   list(type = "leg",       var = <name>, order = <int>)    # random regression
 #   list(type = "covariate", var = <name>)                   # numeric covariate
 # ---------------------------------------------------------------------------
@@ -41,6 +43,10 @@
   switch(fname,
     vm = list(type = "vm", var = argnm(1),
               relmat = if (length(args) >= 2) as.character(args[[2]]) else NULL),
+    mrk = list(type = "mrk", var = argnm(1),
+               relmat = if (length(args) >= 2) as.character(args[[2]]) else NULL,
+               method = if (length(args) >= 3) match.arg(as.character(args[[3]]),
+                              c("auto", "GBLUP", "RRBLUP")) else "auto"),
     leg = ,
     rr  = list(type = "leg", var = argnm(1),
                order = if (length(args) >= 2) as.integer(eval(args[[2]])) else 1L),

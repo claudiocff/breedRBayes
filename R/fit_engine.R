@@ -9,14 +9,21 @@
 #'   Use `cbind(t1, t2) ~ ...` for a multi-trait model.
 #' @param random One-sided formula of random terms, e.g. `~ vm(gen, G)`. Special
 #'   functions: `vm(f, K)` genomic effect with relationship matrix `K`;
-#'   `leg(x, n)` / `rr(x, n)` random regression of order `n`; `fa(f, k)` /
-#'   `rrc(f, k)` factor-analytic. Bare names are factors; `a:b` is an interaction.
+#'   `mrk(f, M, method)` genomic effect from a **marker matrix** `M` that
+#'   automatically fits GBLUP or RR-BLUP, whichever is cheaper (`method` is
+#'   `"auto"`, `"GBLUP"` or `"RRBLUP"`; `"auto"` picks GBLUP when markers >=
+#'   genotypes, else RR-BLUP — the two are prediction-equivalent). Use
+#'   [solve_SNP()] to obtain marker effects. `leg(x, n)` / `rr(x, n)` random
+#'   regression of order `n`; `fa(f, k)` / `rrc(f, k)` factor-analytic. Bare names
+#'   are factors; `a:b` is an interaction.
 #' @param residual One-sided residual formula. `NULL`/`~ units` = homogeneous;
 #'   `~ dsum(~units | env)` = heterogeneous residual variances by `env`.
 #' @param data A data frame.
-#' @param relmat Named list of relationship / covariance matrices referenced by
-#'   `vm()` (e.g. `list(G = kinship)`). Matrices use covariance (K), not its
-#'   inverse. Row/column names must match the factor levels.
+#' @param relmat Named list of matrices referenced by `vm()` and `mrk()`. For
+#'   `vm()` these are relationship / covariance matrices (K, not its inverse),
+#'   with row/column names matching the factor levels. For `mrk()` the entry is a
+#'   marker matrix with genotypes in rows (row names = genotype IDs) and markers
+#'   in columns.
 #' @param nIter,burnIn,thin MCMC controls passed to BGLR.
 #' @param nChains Integer number of independent chains (distinct seeds). Enables
 #'   Gelman-Rubin diagnostics when `> 1`.

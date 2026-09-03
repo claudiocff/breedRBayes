@@ -71,3 +71,69 @@ test_that("bbglr fits GBLUP and recovers heritability", {
   expect_equal(nrow(g), nrow(sim$G))
   expect_true(all(c("ID", "gebv", "sd") %in% names(g)))
 })
+
+# ---------------------------------------------------------------------------
+# mrk(): automatic GBLUP / RR-BLUP selection + solve_SNP() back-solve.
+# ---------------------------------------------------------------------------
+
+simulate_markers <- function(n_gen, n_mrk, n_rep = 3, seed = 1) {
+  set.seed(seed)
+  M <- matrix(rbinom(n_gen * n_mrk, 2, 0.3), n_gen, n_mrk)
+  rownames(M) <- paste0("g", seq_len(n_gen))
+  colnames(M) <- paste0("m", seq_len(n_mrk))
+  Mc <- scale(M, center = TRUE, scale = FALSE)
+  gv <- as.numeric(scale(as.numeric(Mc %*% rnorm(n_mrk))) * 3)
+  names(gv) <- rownames(M)
+  ids <- rep(rownames(M), each = n_rep)
+  df  <- data.frame(gen = ids, y = gv[ids] + rnorm(length(ids), 0, 1))
+  list(M = M, data = df, gv = gv)
+}
+
+test_that("mrk() auto-selects GBLUP when markers >= genotypes and solve_SNP back-solves", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  sim <- simulate_markers(n_gen = 40, n_mrk = 200)
+  fit <- bbglr(y ~ 1, random = ~ mrk(gen, M), data = sim$data,
+               relmat = list(M = sim$M), nIter = 3000, burnIn = 1000,
+               nChains = 1, verbose = FALSE)
+  key <- .vm_keys(fit)
+  expect_length(key, 1L)
+  expect_equal(fit$meta[[key]]$components[[1]]$method, "GBLUP")
+
+  s <- solution(fit, term = key, type = "random")
+  expect_equal(nrow(s), nrow(sim$M))
+  expect_gt(cor(s$solution, sim$gv[s$effect]), 0.8)
+
+  # GBLUP fit needs M to back-solve marker effects
+  expect_error(solve_SNP(fit), "required")
+  snp <- solve_SNP(fit, sim$M)
+  expect_equal(nrow(snp), ncol(sim$M))
+  expect_equal(attr(snp, "method"), "GBLUP")
+  # marker effects reproduce the GEBVs: Mc %*% b == u
+  Mc <- scale(sim$M[s$effect, ], center = TRUE, scale = FALSE)
+  recon <- as.numeric(Mc %*% snp$effect[match(colnames(Mc), snp$marker)])
+  expect_gt(cor(recon, s$solution), 0.999)
+})
+
+test_that("mrk() auto-selects RR-BLUP when genotypes > markers and solve_SNP reads fitted effects", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  sim <- simulate_markers(n_gen = 200, n_mrk = 60)
+  fit <- bbglr(y ~ 1, random = ~ mrk(gen, M), data = sim$data,
+               relmat = list(M = sim$M), nIter = 3000, burnIn = 1000,
+               nChains = 1, verbose = FALSE)
+  key <- .vm_keys(fit)
+  expect_equal(fit$meta[[key]]$components[[1]]$method, "RRBLUP")
+
+  s <- solution(fit, term = key, type = "random")
+  expect_equal(nrow(s), nrow(sim$M))
+  expect_gt(cor(s$solution, sim$gv[s$effect]), 0.8)
+
+  # RR-BLUP estimates marker effects directly; M is not required
+  snp <- solve_SNP(fit)
+  expect_equal(nrow(snp), ncol(sim$M))
+  expect_equal(attr(snp, "method"), "RRBLUP")
+  Mc <- scale(sim$M[s$effect, ], center = TRUE, scale = FALSE)
+  recon <- as.numeric(Mc %*% snp$effect[match(colnames(Mc), snp$marker)])
+  expect_gt(cor(recon, s$solution), 0.999)
+})

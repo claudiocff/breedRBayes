@@ -14,11 +14,11 @@
        paste(labels, collapse = ", "), call. = FALSE)
 }
 
-#' Keys of the random terms that carry a genomic (`vm`) component
+#' Keys of the random terms that carry a genomic (`vm` or `mrk`) component
 #' @keywords internal
 .vm_keys <- function(fit) {
   names(fit$meta)[vapply(fit$meta, function(m)
-    any(vapply(m$components, function(c) identical(c$kind, "vm"), logical(1))),
+    any(vapply(m$components, function(c) c$kind %in% c("vm", "mrk"), logical(1))),
     logical(1))]
 }
 

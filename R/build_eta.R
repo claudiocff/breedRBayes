@@ -47,7 +47,41 @@
       X <- Z %*% rot$PC
       colnames(X) <- lev
       list(X = X, meta = list(kind = "vm", var = comp$var, relmat = comp$relmat,
-                              levels = lev, pc = rot$PC))
+                              levels = lev, method = "GBLUP", bmap = rot$PC))
+    },
+    mrk = {
+      # Marker term with automatic GBLUP / RR-BLUP selection.
+      M0 <- relmat[[comp$relmat]]
+      if (is.null(M0)) {
+        stop("Marker matrix '", comp$relmat, "' for mrk(", comp$var,
+             ") not found in `relmat`.", call. = FALSE)
+      }
+      lev <- intersect(rownames(M0), unique(as.character(data[[comp$var]])))
+      Mc  <- scale(M0[lev, , drop = FALSE], center = TRUE, scale = FALSE)  # centre markers
+      attr(Mc, "scaled:center") <- NULL
+      n <- length(lev); p <- ncol(Mc)
+      cc <- sum(Mc^2) / n                          # = tr(Mc Mc')/n  ~ VanRaden 2*sum(pq)
+      method <- if (identical(comp$method, "auto")) {
+        if (p >= n) "GBLUP" else "RRBLUP"          # markers >= genotypes -> GBLUP
+      } else comp$method
+      Z <- .incidence(factor(data[[comp$var]], levels = lev))
+      if (identical(method, "GBLUP")) {
+        G   <- tcrossprod(Mc) / cc                 # genomic relationship (mean diag ~ 1)
+        rot <- .pc_rotation(G)
+        X   <- Z %*% rot$PC
+        colnames(X) <- lev
+        bmap <- rot$PC
+      } else {
+        Msc  <- Mc / sqrt(cc)                      # so var(Msc a) = G * sigma^2_a  (== GBLUP)
+        X    <- Z %*% Msc
+        colnames(X) <- colnames(Mc)
+        bmap <- Msc                                # per-genotype value = b %*% t(bmap)
+      }
+      message("mrk(", comp$var, "): ", n, " genotypes x ", p, " markers -> ",
+              method, if (identical(comp$method, "auto")) " (auto)" else "", ".")
+      list(X = X, meta = list(kind = "mrk", var = comp$var, relmat = comp$relmat,
+                              levels = lev, method = method, bmap = bmap,
+                              markers = colnames(Mc), c_scale = cc))
     },
     leg = {
       x <- as.numeric(data[[comp$var]])
@@ -109,12 +143,16 @@
         K <- relmat[[comp$relmat]]
         if (is.null(K)) next
         keep <- keep & as.character(data[[comp$var]]) %in% colnames(K)
+      } else if (identical(comp$type, "mrk")) {
+        M <- relmat[[comp$relmat]]
+        if (is.null(M)) next
+        keep <- keep & as.character(data[[comp$var]]) %in% rownames(M)  # genotypes are rows
       }
     }
   }
   if (!all(keep)) {
-    warning(sum(!keep), " row(s) dropped: their vm() levels are absent from the ",
-            "relationship matrix.", call. = FALSE)
+    warning(sum(!keep), " row(s) dropped: their vm()/mrk() levels are absent from the ",
+            "supplied matrix.", call. = FALSE)
   }
   droplevels(data[keep, , drop = FALSE])
 }

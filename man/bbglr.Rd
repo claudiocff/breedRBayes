@@ -25,17 +25,24 @@ Use \code{cbind(t1, t2) ~ ...} for a multi-trait model.}
 
 \item{random}{One-sided formula of random terms, e.g. \code{~ vm(gen, G)}. Special
 functions: \code{vm(f, K)} genomic effect with relationship matrix \code{K};
-\code{leg(x, n)} / \code{rr(x, n)} random regression of order \code{n}; \code{fa(f, k)} /
-\code{rrc(f, k)} factor-analytic. Bare names are factors; \code{a:b} is an interaction.}
+\code{mrk(f, M, method)} genomic effect from a \strong{marker matrix} \code{M} that
+automatically fits GBLUP or RR-BLUP, whichever is cheaper (\code{method} is
+\code{"auto"}, \code{"GBLUP"} or \code{"RRBLUP"}; \code{"auto"} picks GBLUP when markers >=
+genotypes, else RR-BLUP — the two are prediction-equivalent). Use
+\code{\link[=solve_SNP]{solve_SNP()}} to obtain marker effects. \code{leg(x, n)} / \code{rr(x, n)} random
+regression of order \code{n}; \code{fa(f, k)} / \code{rrc(f, k)} factor-analytic. Bare names
+are factors; \code{a:b} is an interaction.}
 
 \item{residual}{One-sided residual formula. \code{NULL}/\code{~ units} = homogeneous;
 \code{~ dsum(~units | env)} = heterogeneous residual variances by \code{env}.}
 
 \item{data}{A data frame.}
 
-\item{relmat}{Named list of relationship / covariance matrices referenced by
-\code{vm()} (e.g. \code{list(G = kinship)}). Matrices use covariance (K), not its
-inverse. Row/column names must match the factor levels.}
+\item{relmat}{Named list of matrices referenced by \code{vm()} and \code{mrk()}. For
+\code{vm()} these are relationship / covariance matrices (K, not its inverse),
+with row/column names matching the factor levels. For \code{mrk()} the entry is a
+marker matrix with genotypes in rows (row names = genotype IDs) and markers
+in columns.}
 
 \item{nIter, burnIn, thin}{MCMC controls passed to BGLR.}
 

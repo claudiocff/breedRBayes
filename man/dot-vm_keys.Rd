@@ -2,11 +2,11 @@
 % Please edit documentation in R/heritability.R
 \name{.vm_keys}
 \alias{.vm_keys}
-\title{Keys of the random terms that carry a genomic (\code{vm}) component}
+\title{Keys of the random terms that carry a genomic (\code{vm} or \code{mrk}) component}
 \usage{
 .vm_keys(fit)
 }
 \description{
-Keys of the random terms that carry a genomic (\code{vm}) component
+Keys of the random terms that carry a genomic (\code{vm} or \code{mrk}) component
 }
 \keyword{internal}

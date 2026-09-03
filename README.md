@@ -12,7 +12,8 @@ distributions, genetic correlations, and Markov-chain convergence diagnostics.
 ## Features
 
 - **One formula interface, four model classes**
-  - **GBLUP / fixed / random** — genomic relationship via `vm(gen, G)`.
+  - **GBLUP / fixed / random** — genomic relationship via `vm(gen, G)`, or a raw
+    marker matrix via `mrk(gen, M)` (auto GBLUP/RR-BLUP; `solve_SNP()` for effects).
   - **Random regression / reaction norm** — `leg(x, order)` / `rr(x, order)`
     Legendre bases.
   - **Multi-trait** — `cbind(t1, t2, ...) ~ ...` with unstructured genetic
@@ -49,6 +50,7 @@ Special functions inside the formulas:
 | Special                | Meaning                                              |
 |------------------------|------------------------------------------------------|
 | `vm(f, K)`             | random effect of factor `f` with covariance `K` (GBLUP). `K` is the **covariance** (relationship) matrix, not its inverse. |
+| `mrk(f, M, method)`    | genomic effect of `f` from a **marker matrix** `M` (genotypes in rows). Auto-selects GBLUP or RR-BLUP (`method = "auto"`, `"GBLUP"`, `"RRBLUP"`). |
 | `leg(x, n)` / `rr(x, n)` | random regression on an orthonormal Legendre basis of order `n` |
 | `fa(f, k)` / `rrc(f, k)` | factor-analytic genetic covariance with `k` factors (multi-trait) |
 | `a:b`                  | interaction (e.g. `env:vm(gen, G)` for GxE)          |
@@ -101,6 +103,35 @@ solutions onto the overall-mean scale (`BLUP + mu`):
 
 ```r
 solution(fit, term = "gen", type = "random", add_mu = TRUE)
+```
+
+### Marker matrix: automatic GBLUP / RR-BLUP
+
+`vm(gen, G)` fits GBLUP from a ready-made relationship matrix. When you have the
+**marker matrix** instead, `mrk(gen, M)` builds the model directly and picks the
+cheaper of the two mathematically equivalent parameterizations:
+
+- **markers ≥ genotypes** → **GBLUP** (an `n × n` genomic relationship, fitted in
+  its principal-component basis),
+- **genotypes > markers** → **RR-BLUP** (estimate the `p` marker effects directly).
+
+Both give the same breeding values and the same heritability; only the compute
+cost differs. Pass `method = "GBLUP"` or `"RRBLUP"` to force one.
+
+```r
+fit <- bbglr(yield ~ 1 + env, random = ~ mrk(gen, M), data = dat, relmat = list(M = M))
+solution(fit, term = "mrk(gen, M)", type = "random")   # genomic breeding values
+```
+
+`solve_SNP()` returns per-marker (allele-substitution) effects on the
+centred-marker scale, such that `GEBV = Mc %*% b`. For an RR-BLUP fit the effects
+are read directly; for a GBLUP fit they are **back-solved** from the breeding
+values (`b = Mcᵀ (Mc Mcᵀ)⁻¹ u`, applied to every posterior draw). GBLUP needs the
+marker matrix passed in; RR-BLUP does not:
+
+```r
+snp <- solve_SNP(fit, M)                 # GBLUP fit: M required to back-solve
+head(snp[order(-abs(snp$effect)), ])     # largest-effect markers
 ```
 
 ### Probability of selection
