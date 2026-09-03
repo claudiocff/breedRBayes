@@ -12,7 +12,9 @@ model_fit(fit)
 \value{
 An object of class \code{breedRB_modelfit} (a list with \code{n}, \code{r2}, \code{rmse},
 \code{dic}, \code{pD}, \code{varE}, and a \code{reliability} data frame of per-term
-\code{mean}/\code{median}/\code{n_effects}), with a \code{print} method. The fitted values and
+\code{mean}/\code{median}/\code{n_effects} — one row per Legendre degree for a
+random-regression interaction of order > 1), with a \code{print} method. The
+fitted values and
 residuals are attached as attributes \code{"fitted"} / \code{"residuals"}.
 }
 \description{
@@ -22,7 +24,10 @@ the observed-vs-fitted \eqn{R^2} and RMSE (on the observations with a
 non-missing response), the deviance information criterion (\code{DIC}) and
 effective number of parameters (\code{pD}) for model comparison, the posterior-mean
 residual variance, and, for every random term, the mean and median BLUP
-reliability (from \code{\link[=solution]{solution()}}). Lower \code{DIC} indicates a better
+reliability (from \code{\link[=solution]{solution()}}). A random-regression interaction is reported
+\strong{per Legendre degree} (\code{...:deg1}, \code{...:deg2}, ...) when its order exceeds 1,
+so the drop in reliability from the linear slope to the higher-order
+curvature coefficients is visible. Lower \code{DIC} indicates a better
 complexity-penalised fit; comparing the \code{DIC} of the full random regression
 against a slope-free model shows whether the reaction-norm (\code{gen:leg(x)}) term
 is warranted.

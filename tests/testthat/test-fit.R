@@ -516,3 +516,31 @@ test_that("reaction_norm() works for a plain-factor (non-genomic) random regress
   expect_named(g$plots, c("cor", "h2", "reliability", "prob"))
   expect_true(all(vapply(g$plots, ggplot2::is.ggplot, logical(1))))
 })
+
+test_that("model_fit() breaks out reliability per Legendre degree for a q>1 RR", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  set.seed(5)
+  n_gen <- 40; n_env <- 12
+  gg  <- rep(paste0("g", 1:n_gen), each = n_env)
+  xx  <- rep(seq(-1, 1, length.out = n_env), n_gen)
+  L   <- legendre_basis(seq(-1, 1, length.out = n_env), 2, orthonormal = TRUE)
+  a   <- rnorm(n_gen); b <- rnorm(n_gen, 0, 0.7); cc <- rnorm(n_gen, 0, 0.3)
+  y   <- 10 + a[factor(gg)] +
+    b[factor(gg)]  * rep(L[, 2], n_gen) +
+    cc[factor(gg)] * rep(L[, 3], n_gen) + rnorm(n_gen * n_env, 0, 0.5)
+  dat <- data.frame(gen = gg, x = xx, y = y)
+
+  fit <- bbglr(y ~ leg(x, 2), random = ~ gen + gen:leg(x, 2), residual = ~ units,
+               data = dat, nIter = 3000, burnIn = 1000, thin = 2, nChains = 2,
+               verbose = FALSE)
+  mf <- model_fit(fit)
+  # the order-2 interaction is reported as two per-degree rows (intercept stays single)
+  expect_true("gen" %in% mf$reliability$term)
+  expect_true(all(c("gen:leg(x, 2):deg1", "gen:leg(x, 2):deg2") %in%
+                    mf$reliability$term))
+  expect_false("gen:leg(x, 2)" %in% mf$reliability$term)   # no collapsed-across-degree row
+  # each degree row counts exactly the genotypes (not genotypes x degrees)
+  degrows <- mf$reliability[grepl(":deg[0-9]+$", mf$reliability$term), ]
+  expect_true(all(degrows$n_effects == n_gen))
+})

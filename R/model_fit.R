@@ -75,7 +75,10 @@ residuals.breedRB_fit <- function(object, ...) {
 #' non-missing response), the deviance information criterion (`DIC`) and
 #' effective number of parameters (`pD`) for model comparison, the posterior-mean
 #' residual variance, and, for every random term, the mean and median BLUP
-#' reliability (from [solution()]). Lower `DIC` indicates a better
+#' reliability (from [solution()]). A random-regression interaction is reported
+#' **per Legendre degree** (`...:deg1`, `...:deg2`, ...) when its order exceeds 1,
+#' so the drop in reliability from the linear slope to the higher-order
+#' curvature coefficients is visible. Lower `DIC` indicates a better
 #' complexity-penalised fit; comparing the `DIC` of the full random regression
 #' against a slope-free model shows whether the reaction-norm (`gen:leg(x)`) term
 #' is warranted.
@@ -83,7 +86,9 @@ residuals.breedRB_fit <- function(object, ...) {
 #' @param fit A `breedRB_fit` (single-trait).
 #' @return An object of class `breedRB_modelfit` (a list with `n`, `r2`, `rmse`,
 #'   `dic`, `pD`, `varE`, and a `reliability` data frame of per-term
-#'   `mean`/`median`/`n_effects`), with a `print` method. The fitted values and
+#'   `mean`/`median`/`n_effects` — one row per Legendre degree for a
+#'   random-regression interaction of order > 1), with a `print` method. The
+#'   fitted values and
 #'   residuals are attached as attributes `"fitted"` / `"residuals"`.
 #' @examples
 #' \donttest{
@@ -119,15 +124,32 @@ model_fit <- function(fit) {
   varE <- vc$mean[vc$term == "varE"]
   if (!length(varE)) varE <- NA_real_
 
-  # Per random-term BLUP reliability (skip terms with no reliability column).
+  # Per random-term BLUP reliability (skip terms with no reliability column). A
+  # random-regression interaction is broken out per Legendre degree (deg1 =
+  # linear slope, deg2 = quadratic, ...), since higher degrees are estimated far
+  # less reliably than the intercept/linear coefficients.
   rk  <- .random_keys(fit)
   rel <- lapply(rk, function(k) {
     s <- tryCatch(solution(fit, term = k, type = "random"), error = function(e) NULL)
     if (is.null(s) || is.null(s$reliability)) return(NULL)
-    data.frame(term = fit$meta[[k]]$label,
-               mean_reliability   = mean(s$reliability),
-               median_reliability = stats::median(s$reliability),
-               n_effects = nrow(s), row.names = NULL)
+    lab <- fit$meta[[k]]$label
+    deg  <- ifelse(grepl(":deg[0-9]+$", s$effect),
+                   as.integer(sub(".*:deg([0-9]+)$", "\\1", s$effect)), NA_integer_)
+    degs <- sort(unique(deg[!is.na(deg)]))
+    if (length(degs) > 1L) {                      # RR interaction (q > 1): one row per degree
+      do.call(rbind, lapply(degs, function(j) {
+        ix <- which(deg == j)
+        data.frame(term = paste0(lab, ":deg", j),
+                   mean_reliability   = mean(s$reliability[ix]),
+                   median_reliability = stats::median(s$reliability[ix]),
+                   n_effects = length(ix), row.names = NULL)
+      }))
+    } else {
+      data.frame(term = lab,
+                 mean_reliability   = mean(s$reliability),
+                 median_reliability = stats::median(s$reliability),
+                 n_effects = nrow(s), row.names = NULL)
+    }
   })
   rel <- do.call(rbind, Filter(Negate(is.null), rel))
 
