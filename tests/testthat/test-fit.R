@@ -433,3 +433,38 @@ test_that("reaction_norm() evaluates per-genotype curves across the gradient", {
   rp <- reaction_norm(fit, term = "mrk(gen, M):leg(x, 1)", plot = TRUE, n_grid = 20)
   expect_s3_class(attr(rp, "plot"), "ggplot")
 })
+
+test_that("reaction_norm() works for a plain-factor (non-genomic) random regression", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  set.seed(2)
+  n_gen <- 30; n_env <- 14
+  gg <- rep(paste0("g", 1:n_gen), each = n_env)
+  xx <- rep(seq(-2, 2, length.out = n_env), n_gen)
+  a  <- stats::setNames(rnorm(n_gen, 5, 1),   paste0("g", 1:n_gen))
+  b  <- stats::setNames(rnorm(n_gen, 0, 0.8), paste0("g", 1:n_gen))
+  y  <- a[gg] + b[gg] * xx + rnorm(n_gen * n_env, 0, 0.5)
+  dat <- data.frame(gen = gg, x = xx, y = y)
+
+  # gen is a plain random factor (no relmat): gen:leg(x) is a factor x leg RR
+  fit <- bbglr(y ~ leg(x), random = ~ gen + gen:leg(x), residual = ~ units,
+               data = dat, nIter = 4000, burnIn = 1500, thin = 5, nChains = 2,
+               verbose = FALSE)
+
+  rn <- reaction_norm(fit, term = "gen:leg(x)", type = "random", plot = FALSE,
+                      n_grid = 50)
+  expect_true(all(c("id", "gradient", "value") %in% names(rn)))
+  expect_equal(length(unique(rn$id)), n_gen)
+  expect_equal(nrow(rn), n_gen * 50L)
+  expect_equal(range(rn$gradient), c(-1, 1))
+
+  # each genotype's fitted slope recovers the simulated reaction-norm slope
+  sl <- vapply(split(rn, rn$id),
+               function(d) stats::coef(stats::lm(value ~ gradient, d))[2], numeric(1))
+  expect_gt(cor(sl[names(b)], b), 0.9)
+
+  # original-scale axis matches the covariate range
+  rn2 <- reaction_norm(fit, term = "gen:leg(x)", plot = FALSE, leg_basis = FALSE,
+                       n_grid = 50)
+  expect_equal(range(rn2$gradient), range(dat$x), tolerance = 1e-8)
+})

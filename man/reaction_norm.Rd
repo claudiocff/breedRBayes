@@ -15,12 +15,12 @@ reaction_norm(
 )
 }
 \arguments{
-\item{fit}{A \code{breedRB_fit} (single-trait) containing a genomic random
-regression.}
+\item{fit}{A \code{breedRB_fit} (single-trait) containing a random regression.}
 
-\item{term}{The interaction term identifier, e.g. \code{"mrk(gen, M):leg(x, 1)"}
-(label as written in the formula, or the internal key). Its matching
-intercept term (\code{mrk(gen, M)}) is detected automatically.}
+\item{term}{The interaction term identifier, e.g. \code{"gen:leg(x)"} or
+\code{"mrk(gen, M):leg(x, 1)"} (label as written in the formula, or the internal
+key). Its matching intercept term (\code{gen} / \code{mrk(gen, M)}) is detected
+automatically.}
 
 \item{type}{Optional; validated against the term's role (must be \code{"random"}
 for a reaction norm).}
@@ -47,15 +47,16 @@ value). The gradient grid is attached as attribute \code{"grid"} and, when
 \code{plot = TRUE}, the \pkg{ggplot2} object as attribute \code{"plot"}.
 }
 \description{
-For a genomic random-regression (reaction-norm) fit
-(\code{random = ~ mrk(gen, M) + mrk(gen, M):leg(x, q)}), evaluates each genotype's
-fitted curve over the environmental gradient,
+For a random-regression (reaction-norm) fit, evaluates each genotype's fitted
+curve over the environmental gradient,
 \deqn{v_i(x) = \hat a_i + \sum_{j=1}^{q} \hat b_{i,j}\, L_j(x),}
-where the intercept \eqn{\hat a_i} comes from the genomic main-effect term and
+where the intercept \eqn{\hat a_i} comes from the grouping main-effect term and
 the reaction-norm coefficients \eqn{\hat b_{i,j}} from the interaction \code{term}
 (\code{deg1} = linear slope, \code{deg2} = quadratic, ...), and \eqn{L_j} is the same
 orthonormal Legendre basis used in fitting, on the standardized domain
-\eqn{[-1, 1]}.
+\eqn{[-1, 1]}. The grouping factor may be genomic
+(\code{~ mrk(gen, M) + mrk(gen, M):leg(x, q)}) or a plain random factor fitted
+without a relationship matrix (\code{~ gen + gen:leg(x)}).
 }
 \examples{
 \donttest{

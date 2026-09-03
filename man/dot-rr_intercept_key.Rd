@@ -2,7 +2,7 @@
 % Please edit documentation in R/reaction_norm.R
 \name{.rr_intercept_key}
 \alias{.rr_intercept_key}
-\title{Find the genomic main-effect (intercept) term matching a random-regression term}
+\title{Find the main-effect (intercept) term matching a random-regression term}
 \usage{
 .rr_intercept_key(fit, gc)
 }
@@ -10,8 +10,8 @@
 The matching term key, or \code{NULL} if none is found.
 }
 \description{
-Given the genomic component \code{gc} of an interaction term, locates the random
-term whose single component is the same genomic effect (same variable and
-matrix) — the reaction-norm intercept.
+Given the grouping component \code{gc} of an interaction term, locates the random
+term whose single component is the same effect (same kind and variable, and —
+for a genomic effect — the same matrix): the reaction-norm intercept.
 }
 \keyword{internal}

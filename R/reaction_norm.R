@@ -1,25 +1,49 @@
 # ---------------------------------------------------------------------------
 # reaction_norm(): evaluate per-genotype reaction-norm curves across the
-# environmental gradient for a genomic random-regression fit.
+# environmental gradient for a random-regression fit (genomic or plain-factor).
 # ---------------------------------------------------------------------------
 
 # aes() columns of the long data frame built inside reaction_norm()
 utils::globalVariables(c("gradient", "value", "id"))
 
-#' Find the genomic main-effect (intercept) term matching a random-regression term
+#' Detect any random-regression interaction (`grouping x leg()`)
 #'
-#' Given the genomic component `gc` of an interaction term, locates the random
-#' term whose single component is the same genomic effect (same variable and
-#' matrix) — the reaction-norm intercept.
+#' Broader than [.geno_leg_parts()]: the grouping component may be a genomic
+#' `vm()`/`mrk()` effect **or** a plain random `factor` (e.g. `gen:leg(x)` with
+#' `gen` fitted without a relationship matrix). `solution()` already returns
+#' per-level reaction-norm coefficients for both.
+#' @return `NULL` unless the term is a two-way interaction of one `leg()` basis
+#'   with exactly one grouping component; otherwise a list with that component
+#'   `gc`, the `leg()` order `q`, its variable `legvar` and `range`, and whether
+#'   the grouping is `genomic`.
+#' @keywords internal
+.rr_leg_parts <- function(meta) {
+  comps <- meta$components
+  if (length(comps) != 2L) return(NULL)
+  kinds <- vapply(comps, `[[`, character(1), "kind")
+  lpos  <- which(kinds == "leg")
+  gpos  <- which(kinds != "leg")
+  if (length(lpos) != 1L || length(gpos) != 1L) return(NULL)
+  gc <- comps[[gpos]]
+  list(gc = gc, q = comps[[lpos]]$order, legvar = comps[[lpos]]$var,
+       range = comps[[lpos]]$range, genomic = gc$kind %in% c("vm", "mrk"))
+}
+
+#' Find the main-effect (intercept) term matching a random-regression term
+#'
+#' Given the grouping component `gc` of an interaction term, locates the random
+#' term whose single component is the same effect (same kind and variable, and —
+#' for a genomic effect — the same matrix): the reaction-norm intercept.
 #' @return The matching term key, or `NULL` if none is found.
 #' @keywords internal
 .rr_intercept_key <- function(fit, gc) {
+  genomic <- gc$kind %in% c("vm", "mrk")
   for (k in .random_keys(fit)) {
     comps <- fit$meta[[k]]$components
     if (length(comps) != 1L) next
     c1 <- comps[[1]]
-    if (c1$kind %in% c("vm", "mrk") &&
-        identical(c1$var, gc$var) && identical(c1$relmat, gc$relmat)) {
+    if (identical(c1$kind, gc$kind) && identical(c1$var, gc$var) &&
+        (!genomic || identical(c1$relmat, gc$relmat))) {
       return(k)
     }
   }
@@ -63,21 +87,22 @@ utils::globalVariables(c("gradient", "value", "id"))
 
 #' Genotype reaction-norm curves across the environmental gradient
 #'
-#' For a genomic random-regression (reaction-norm) fit
-#' (`random = ~ mrk(gen, M) + mrk(gen, M):leg(x, q)`), evaluates each genotype's
-#' fitted curve over the environmental gradient,
+#' For a random-regression (reaction-norm) fit, evaluates each genotype's fitted
+#' curve over the environmental gradient,
 #' \deqn{v_i(x) = \hat a_i + \sum_{j=1}^{q} \hat b_{i,j}\, L_j(x),}
-#' where the intercept \eqn{\hat a_i} comes from the genomic main-effect term and
+#' where the intercept \eqn{\hat a_i} comes from the grouping main-effect term and
 #' the reaction-norm coefficients \eqn{\hat b_{i,j}} from the interaction `term`
 #' (`deg1` = linear slope, `deg2` = quadratic, ...), and \eqn{L_j} is the same
 #' orthonormal Legendre basis used in fitting, on the standardized domain
-#' \eqn{[-1, 1]}.
+#' \eqn{[-1, 1]}. The grouping factor may be genomic
+#' (`~ mrk(gen, M) + mrk(gen, M):leg(x, q)`) or a plain random factor fitted
+#' without a relationship matrix (`~ gen + gen:leg(x)`).
 #'
-#' @param fit A `breedRB_fit` (single-trait) containing a genomic random
-#'   regression.
-#' @param term The interaction term identifier, e.g. `"mrk(gen, M):leg(x, 1)"`
-#'   (label as written in the formula, or the internal key). Its matching
-#'   intercept term (`mrk(gen, M)`) is detected automatically.
+#' @param fit A `breedRB_fit` (single-trait) containing a random regression.
+#' @param term The interaction term identifier, e.g. `"gen:leg(x)"` or
+#'   `"mrk(gen, M):leg(x, 1)"` (label as written in the formula, or the internal
+#'   key). Its matching intercept term (`gen` / `mrk(gen, M)`) is detected
+#'   automatically.
 #' @param type Optional; validated against the term's role (must be `"random"`
 #'   for a reaction norm).
 #' @param add_fixed_reg Logical (default `TRUE`). Add the fixed population
@@ -114,11 +139,11 @@ reaction_norm <- function(fit, term, type = NULL, add_fixed_reg = TRUE,
 
   key  <- .resolve_term(fit, term)
   meta <- fit$meta[[key]]
-  rr   <- .geno_leg_parts(meta)
+  rr   <- .rr_leg_parts(meta)
   if (is.null(rr)) {
-    stop("Term '", term, "' is not a genomic random-regression interaction ",
-         "(expected a mrk()/vm() x leg() term such as \"mrk(gen, M):leg(x, 1)\").",
-         call. = FALSE)
+    stop("Term '", term, "' is not a random-regression interaction ",
+         "(expected a grouping x leg() term such as \"gen:leg(x)\" or ",
+         "\"mrk(gen, M):leg(x, 1)\").", call. = FALSE)
   }
   if (!is.null(type)) {
     type <- match.arg(type, c("random", "fixed"))
@@ -129,15 +154,15 @@ reaction_norm <- function(fit, term, type = NULL, add_fixed_reg = TRUE,
   }
 
   gc     <- rr$gc; q <- rr$q
-  legvar <- meta$components[[rr$lpos]]$var
-  rng    <- meta$components[[rr$lpos]]$range
+  legvar <- rr$legvar
+  rng    <- rr$range
 
-  # Intercept (genomic main effect) and per-degree slopes, both per genotype.
+  # Intercept (grouping main effect) and per-degree slopes, both per genotype.
   ikey <- .rr_intercept_key(fit, gc)
   if (is.null(ikey)) {
-    stop("No genomic main-effect (intercept) term matching '", term,
-         "' was found; a reaction norm needs both mrk(gen, M) and ",
-         "mrk(gen, M):leg(x, q) in the model.", call. = FALSE)
+    stop("No main-effect (intercept) term matching '", term, "' was found; a ",
+         "reaction norm needs both the main effect (e.g. ", gc$var, ") and its ",
+         "leg() interaction in the model.", call. = FALSE)
   }
   ii <- solution(fit, term = ikey, type = "random")
   ss <- solution(fit, term = key,  type = "random")
@@ -145,13 +170,17 @@ reaction_norm <- function(fit, term, type = NULL, add_fixed_reg = TRUE,
   ids <- ii$effect
   int <- stats::setNames(ii$solution, ii$effect)[ids]
 
-  # Reshape the per-degree slope solutions into an [nGen x q] coefficient matrix.
-  S <- matrix(0, nrow = length(ids), ncol = q, dimnames = list(ids, NULL))
-  slp <- stats::setNames(ss$solution, ss$effect)
-  for (j in seq_len(q)) {
-    nm <- .rr_effect_names(ids, q, j)
-    S[, j] <- slp[nm]
-  }
+  # Reshape the slope solutions into an [nGen x q] coefficient matrix. Effect names
+  # carry the degree as an ":deg{j}" suffix (always for a factor interaction, and
+  # for a genomic interaction when q > 1); a bare id is degree 1 (genomic, q = 1).
+  S    <- matrix(0, nrow = length(ids), ncol = q, dimnames = list(ids, NULL))
+  slp  <- stats::setNames(ss$solution, ss$effect)
+  nm   <- names(slp)
+  hasd <- grepl(":deg[0-9]+$", nm)
+  sid  <- ifelse(hasd, sub(":deg[0-9]+$", "", nm), nm)
+  sdeg <- ifelse(hasd, as.integer(sub(".*:deg([0-9]+)$", "\\1", nm)), 1L)
+  keep <- sid %in% ids & sdeg <= q
+  S[cbind(match(sid[keep], ids), sdeg[keep])] <- slp[keep]
 
   # Legendre grid on the standardized [-1, 1] domain (as used in fitting).
   gstd <- seq(-1, 1, length.out = n_grid)
