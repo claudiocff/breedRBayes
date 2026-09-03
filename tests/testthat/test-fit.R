@@ -562,4 +562,21 @@ test_that("model_fit() breaks out reliability per Legendre degree for a q>1 RR",
   rn_ns <- reaction_norm(fit, term = "gen:leg(x,2)", plot = FALSE, n_grid = 10L)
   rn_sp <- reaction_norm(fit, term = "gen:leg(x, 2)", plot = FALSE, n_grid = 10L)
   expect_equal(rn_ns$value, rn_sp$value, tolerance = 1e-12)
+
+  # gxe(): per-genotype adaptability / responsiveness / stability table
+  gx <- gxe(fit, term = "gen:leg(x, 2)")
+  expect_s3_class(gx, "breedRB_gxe")
+  expect_true(all(c("id", "adaptability", "responsiveness", "cv_ge",
+                    "adaptability_rank", "stability_rank") %in% names(gx)))
+  expect_equal(nrow(gx), n_gen)
+  expect_true(all(gx$cv_ge >= 0))
+  # ordered by adaptability (best first, higher = better by default)
+  expect_equal(gx$adaptability, sort(gx$adaptability, decreasing = TRUE))
+  # stability rank 1 == smallest coefficient of variation
+  expect_equal(gx$id[gx$stability_rank == 1L], gx$id[which.min(gx$cv_ge)])
+  # adaptability equals the mean of each genotype's phenotype-scale curve
+  rn_ph <- reaction_norm(fit, term = "gen:leg(x, 2)", plot = FALSE, n_grid = 100L)
+  amean <- vapply(split(rn_ph$value, rn_ph$id), mean, numeric(1))
+  expect_equal(unname(gx$adaptability[match(names(amean), gx$id)]),
+               unname(amean), tolerance = 1e-8)
 })
