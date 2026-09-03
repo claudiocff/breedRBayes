@@ -49,6 +49,16 @@ test_that("bbglr fits GBLUP and recovers heritability", {
   expect_equal(shift, rep(shift[1], nrow(smu)), tolerance = 1e-6)
   expect_gt(abs(shift[1]), 0)
 
+  # pr(): probability of ranking in the top 20%
+  p <- pr(fit, term = "vm(gen, G)", type = "random", threshold = 0.20)
+  expect_equal(nrow(p), nrow(sim$G))
+  expect_true(all(c("effect", "solution", "prob") %in% names(p)))
+  expect_true(all(p$prob >= 0 & p$prob <= 1))
+  # exactly k levels are flagged in every draw => probabilities sum to k
+  expect_equal(sum(p$prob), attr(p, "k"), tolerance = 1e-8)
+  # top-ranked genotype by posterior mean should have high top-20% probability
+  expect_gt(p$prob[1], 0.5)
+
   # gebv() still works but is deprecated and delegates to solution()
   g <- suppressWarnings(gebv(fit))
   expect_warning(gebv(fit), "deprecated")

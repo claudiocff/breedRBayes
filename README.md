@@ -103,6 +103,18 @@ solutions onto the overall-mean scale (`BLUP + mu`):
 solution(fit, term = "gen", type = "random", add_mu = TRUE)
 ```
 
+### Probability of selection
+
+`pr()` gives the posterior probability that each level ranks in the top
+fraction. Every MCMC draw is ranked independently and the best
+`round(threshold × n)` levels are flagged; the reported probability is how often
+a level is flagged — the Bayesian "probability of being in the top X%":
+
+```r
+pr(fit, term = "gen", type = "random", threshold = 0.20)  # P(top 20%)
+pr(fit, term = "gen", type = "random", threshold = 0.10, higher = FALSE)  # P(bottom 10%)
+```
+
 ### Random regression (reaction norm)
 
 ```r
