@@ -13,7 +13,8 @@ distributions, genetic correlations, and Markov-chain convergence diagnostics.
 
 - **One formula interface, four model classes**
   - **GBLUP / fixed / random** — a raw marker matrix via `mrk(gen, M)` (auto
-    GBLUP/RR-BLUP; `predict()` new genotypes, `solve_SNP()` for effects), or a
+    GBLUP/RR-BLUP; optional low-rank PC-GBLUP via `rank=`; `predict()` /
+    `predict_pr()` for new genotypes, `solve_SNP()` for effects), or a
     ready-made relationship matrix via `vm(gen, G)`.
   - **Random regression / reaction norm** — `leg(x, order)` / `rr(x, order)`
     Legendre bases.
@@ -98,6 +99,9 @@ pr(fit, term = "mrk(gen, M)", threshold = 0.10)
 ## Predict the 20 genotyped-but-unphenotyped lines from their markers:
 predict(fit, M[newg, ], add_mu = TRUE)   # ID, prediction, sd, lower, upper
 
+## P(each new line beats the top 10% of the training population):
+predict_pr(fit, M[newg, ], threshold = 0.10)   # ID, prediction, sd, prob
+
 ## Marker effects (back-solved from a GBLUP fit, read directly from RR-BLUP):
 solve_SNP(fit)
 
@@ -173,6 +177,20 @@ marker effects), with the full posterior propagated to a credible interval.
 ```r
 pred <- predict(fit, M_new, add_mu = TRUE)   # score genotypes never seen in training
 head(pred)                                   # ID, prediction, sd, lower, upper
+```
+
+**Probability a new line clears a population bar** with `predict_pr()`: the
+posterior probability that a new genotype exceeds a threshold defined by the
+**training population** (e.g. its top 10%). It is computed per posterior draw —
+in each draw the bar is that quantile of the *training* genotypes and the new
+line's predicted value is compared against it — so it uses the whole posterior,
+not just the point estimate. A new line with **more marker information** (a
+tighter predictive posterior) that sits above the bar earns a higher probability
+than an equally-ranked but more uncertain one:
+
+```r
+predict_pr(fit, M_new, threshold = 0.10)                 # P(above the training top 10%)
+predict_pr(fit, M_new, threshold = 0.10, higher = FALSE) # P(below the training bottom 10%)
 ```
 
 **Marker effects** with `solve_SNP()`: per-marker allele-substitution effects on

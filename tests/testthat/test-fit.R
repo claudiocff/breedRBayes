@@ -231,6 +231,35 @@ test_that("predict() scores genotypes held out of training", {
   expect_gt(cor(pred$prediction, sim$gv[pred$ID]), 0.6)
 })
 
+test_that("predict_pr() gives P(new genotype beats the training-population bar)", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  sim <- simulate_markers(n_gen = 220, n_mrk = 200, n_rep = 4)
+  train_ids <- paste0("g", 1:180)
+  test_ids  <- paste0("g", 181:220)
+  train <- sim$data[sim$data$gen %in% train_ids, ]
+
+  fit <- bbglr(y ~ 1, random = ~ mrk(gen, M), data = train,
+               relmat = list(M = sim$M[train_ids, ]), nIter = 3000, burnIn = 1000,
+               nChains = 1, verbose = FALSE)
+
+  pp <- predict_pr(fit, sim$M[test_ids, ], threshold = 0.20)
+  expect_equal(sort(pp$ID), sort(test_ids))
+  expect_true(all(c("ID", "prediction", "sd", "prob") %in% names(pp)))
+  expect_true(all(pp$prob >= 0 & pp$prob <= 1))               # valid probabilities
+  expect_false(is.unsorted(rev(pp$prob)))                     # ordered by decreasing prob
+  # probability tracks the point prediction: the top-predicted lines clear the
+  # bar more often than the bottom-predicted ones
+  expect_gt(cor(pp$prediction, pp$prob), 0.7)
+  # invariant to add_mu (intercept cancels in the comparison)
+  pp_mu <- predict_pr(fit, sim$M[test_ids, ], threshold = 0.20, add_mu = TRUE)
+  m <- match(pp$ID, pp_mu$ID)
+  expect_equal(pp$prob, pp_mu$prob[m], tolerance = 1e-8)
+  # bottom tail: P(below the worst 20%) is the complementary question
+  pp_low <- predict_pr(fit, sim$M[test_ids, ], threshold = 0.20, higher = FALSE)
+  expect_true(all(pp_low$prob >= 0 & pp_low$prob <= 1))
+})
+
 test_that("mrk() auto-selects RR-BLUP when genotypes > markers and solve_SNP reads fitted effects", {
   skip_on_cran()
   skip_if_not_installed("BGLR")
