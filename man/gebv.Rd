@@ -10,7 +10,7 @@ gebv(fit, term = NULL, prob = 0.95)
 \item{fit}{A \code{breedRB_fit} (single-trait).}
 
 \item{term}{Genetic term identifier (label or key). Defaults to the first
-\code{vm()} term.}
+\code{vm()} term. For a non-genomic random effect use \code{\link[=solution]{solution()}} instead.}
 
 \item{prob}{Central credible-interval mass (default 0.95).}
 }
@@ -20,10 +20,14 @@ ordered by decreasing \code{gebv}, with the pooled draws matrix
 (\verb{nDraws x nLevel}) attached as attribute \code{"draws"}.
 }
 \description{
-Reconstructs per-level genetic values for a \code{vm()} term from the saved BGLR
+Reconstructs per-genotype genetic values for a \code{vm()} term from the saved BGLR
 effect samples, mapping the ridge coefficients back through the PC rotation
-(\verb{genetic value = PC \%*\% b}), pooled across chains.
+(\verb{genetic value = PC \%*\% b}), pooled across chains. This is \code{\link[=solution]{solution()}}
+specialised to a genomic term, with the value column named \code{gebv}.
 }
 \examples{
 \donttest{ head(gebv(fit)) }
+}
+\seealso{
+\code{\link[=solution]{solution()}} for BLUPs of any random term and fixed-effect estimates.
 }

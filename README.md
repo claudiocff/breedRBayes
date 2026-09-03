@@ -78,12 +78,26 @@ fit <- bbglr(
 
 varcomp(fit)          # posterior variance components
 heritability(fit)     # h2 as a full posterior distribution
-mcmc_diag(fit)        # R-hat, effective sample size, Geweke
-gebv(fit)             # posterior genomic breeding values
+mcmc_diag(fit, plot = TRUE)   # R-hat, ESS, Geweke + ggplot2 trace plots
+gebv(fit)             # posterior genomic breeding values (a vm() term)
 
 plot_trace(fit)       # chain trace plots
 plot_posterior(heritability(fit))
 ```
+
+### Extracting solutions for any term
+
+`gebv()` is specific to a genomic `vm()` term. For a plain random factor (fitted
+without a relationship matrix) or for fixed effects, use `solution()`:
+
+```r
+fit <- bbglr(yield ~ env + env:rep, random = ~ gen, residual = ~ units, data = dat)
+
+solution(fit, term = "gen", type = "random")   # random BLUPs, no G matrix needed
+solution(fit, term = "env", type = "fixed")    # fixed-effect estimates
+```
+
+`type` is optional and, when given, is checked against the term's actual role.
 
 ### Random regression (reaction norm)
 

@@ -91,6 +91,7 @@
   if (length(fa_comp)) entry$Cov <- list(type = "FA", nF = fa_comp[[1]]$meta$nfac)
   list(eta = entry,
        meta = list(label = term$label, role = term$role, model = model,
+                   coef_names = colnames(X),
                    components = lapply(comp_designs, `[[`, "meta")))
 }
 
