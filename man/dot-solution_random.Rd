@@ -2,11 +2,15 @@
 % Please edit documentation in R/effects.R
 \name{.solution_random}
 \alias{.solution_random}
-\title{Posterior draws for a random term, back-mapped to interpretable columns}
+\title{Per-chain posterior draws for a random term, back-mapped to interpretable columns}
 \usage{
 .solution_random(fit, key, meta)
 }
+\value{
+A list (one matrix per chain, \verb{[nSamples x nEffect]}) of post-burn-in
+draws. Kept per-chain so the intercept can be aligned before pooling.
+}
 \description{
-Posterior draws for a random term, back-mapped to interpretable columns
+Per-chain posterior draws for a random term, back-mapped to interpretable columns
 }
 \keyword{internal}

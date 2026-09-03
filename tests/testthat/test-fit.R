@@ -43,6 +43,12 @@ test_that("bbglr fits GBLUP and recovers heritability", {
   expect_equal(nrow(s), nrow(sim$G))
   expect_true(all(c("effect", "solution", "sd", "lower", "upper") %in% names(s)))
 
+  # add_mu shifts every solution onto the intercept scale by a constant mean
+  smu <- solution(fit, term = "vm(gen, G)", type = "random", add_mu = TRUE)
+  shift <- smu$solution - s$solution[match(smu$effect, s$effect)]
+  expect_equal(shift, rep(shift[1], nrow(smu)), tolerance = 1e-6)
+  expect_gt(abs(shift[1]), 0)
+
   # gebv() still works but is deprecated and delegates to solution()
   g <- suppressWarnings(gebv(fit))
   expect_warning(gebv(fit), "deprecated")

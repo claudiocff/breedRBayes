@@ -96,6 +96,12 @@ solution(fit, term = "env", type = "fixed")    # fixed-effect estimates
 ```
 
 `type` is optional and, when given, is checked against the term's actual role.
+Set `add_mu = TRUE` to add the model intercept to every draw, shifting the
+solutions onto the overall-mean scale (`BLUP + mu`):
+
+```r
+solution(fit, term = "gen", type = "random", add_mu = TRUE)
+```
 
 ### Random regression (reaction norm)
 

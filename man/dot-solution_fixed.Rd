@@ -2,11 +2,14 @@
 % Please edit documentation in R/effects.R
 \name{.solution_fixed}
 \alias{.solution_fixed}
-\title{Posterior draws for a fixed term, read from BGLR's \verb{_b.dat} trace}
+\title{Per-chain posterior draws for a fixed term, read from BGLR's \verb{_b.dat} trace}
 \usage{
 .solution_fixed(fit, key, meta)
 }
+\value{
+A list (one matrix per chain) of post-burn-in draws.
+}
 \description{
-Posterior draws for a fixed term, read from BGLR's \verb{_b.dat} trace
+Per-chain posterior draws for a fixed term, read from BGLR's \verb{_b.dat} trace
 }
 \keyword{internal}

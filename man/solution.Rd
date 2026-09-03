@@ -4,7 +4,7 @@
 \alias{solution}
 \title{Posterior solutions (BLUPs / fixed effects) for a model term}
 \usage{
-solution(fit, term = NULL, type = NULL, prob = 0.95)
+solution(fit, term = NULL, type = NULL, prob = 0.95, add_mu = FALSE)
 }
 \arguments{
 \item{fit}{A \code{breedRB_fit} (single-trait).}
@@ -17,6 +17,11 @@ validated against the term's actual role (a mismatch is an error), which is a
 convenient guard when a name could be ambiguous.}
 
 \item{prob}{Central credible-interval mass (default 0.95).}
+
+\item{add_mu}{Logical (default \code{FALSE}). If \code{TRUE}, the model intercept \code{mu} is
+added to every draw, shifting the solutions onto the overall-mean scale
+(e.g. \code{BLUP + mu}). Most useful for random BLUPs; the addition is done
+per posterior draw so the credible intervals account for uncertainty in \code{mu}.}
 }
 \value{
 A data frame with \code{effect} (level / coefficient name), \code{solution}
@@ -40,8 +45,9 @@ contrasts; the reference level is the implicit baseline at 0).
 }
 \examples{
 \donttest{
-solution(fit, term = "gen", type = "random")   # random BLUPs (no G matrix needed)
-solution(fit, term = "env", type = "fixed")    # fixed-effect estimates
+solution(fit, term = "gen", type = "random")               # random BLUPs (no G matrix)
+solution(fit, term = "gen", type = "random", add_mu = TRUE) # BLUP + mu
+solution(fit, term = "env", type = "fixed")                 # fixed-effect estimates
 }
 }
 \seealso{

@@ -3,14 +3,17 @@
 # BLUPs (with or without a `vm()` genomic component) and fixed-effect estimates.
 # ---------------------------------------------------------------------------
 
-#' Posterior draws for a random term, back-mapped to interpretable columns
+#' Per-chain posterior draws for a random term, back-mapped to interpretable columns
+#'
+#' @return A list (one matrix per chain, `[nSamples x nEffect]`) of post-burn-in
+#'   draws. Kept per-chain so the intercept can be aligned before pooling.
 #' @keywords internal
 .solution_random <- function(fit, key, meta) {
   comps <- meta$components
   is_vm_single <- length(comps) == 1L && identical(comps[[1]]$kind, "vm")
   has_vm       <- any(vapply(comps, function(c) identical(c$kind, "vm"), logical(1)))
 
-  do.call(rbind, lapply(fit$paths, function(prefix) {
+  lapply(fit$paths, function(prefix) {
     b <- BGLR::readBinMat(paste0(prefix, "ETA_", key, "_b.bin"))   # [nSamples x p]
     if (is_vm_single) {
       PC  <- comps[[1]]$pc
@@ -27,23 +30,43 @@
       colnames(b) <- meta$coef_names
       b
     }
-  }))
+  })
 }
 
-#' Posterior draws for a fixed term, read from BGLR's `_b.dat` trace
+#' Per-chain posterior draws for a fixed term, read from BGLR's `_b.dat` trace
+#'
+#' @return A list (one matrix per chain) of post-burn-in draws.
 #' @keywords internal
 .solution_fixed <- function(fit, key, meta) {
   nburn <- floor(fit$control$burnIn / fit$control$thin)
-  draws <- do.call(rbind, lapply(fit$paths, function(prefix) {
+  lapply(fit$paths, function(prefix) {
     tr <- as.matrix(utils::read.table(paste0(prefix, "ETA_", key, "_b.dat"),
                                        header = TRUE))
     if (nrow(tr) > nburn) tr <- tr[(nburn + 1L):nrow(tr), , drop = FALSE]  # drop burn-in
+    if (!is.null(meta$coef_names) && ncol(tr) == length(meta$coef_names)) {
+      colnames(tr) <- meta$coef_names
+    }
     tr
-  }))
-  if (!is.null(meta$coef_names) && ncol(draws) == length(meta$coef_names)) {
-    colnames(draws) <- meta$coef_names
-  }
-  draws
+  })
+}
+
+#' Per-chain post-burn-in draws of the intercept `mu`
+#'
+#' Reads BGLR's `mu.dat` trace (which includes the thinned burn-in) and aligns
+#' each chain to a target number of draws by keeping the trailing rows.
+#' @param n_per_chain Integer vector of target draw counts, one per chain.
+#' @keywords internal
+.solution_mu <- function(fit, n_per_chain) {
+  Map(function(prefix, n) {
+    f <- paste0(prefix, "mu.dat")
+    if (!file.exists(f)) {
+      stop("add_mu = TRUE but the intercept trace '", f, "' was not found; ",
+           "the model appears to have been fitted without an intercept.",
+           call. = FALSE)
+    }
+    mu <- scan(f, quiet = TRUE)
+    utils::tail(mu, n)                                             # align to post-burn-in draws
+  }, fit$paths, n_per_chain)
 }
 
 #' Posterior solutions (BLUPs / fixed effects) for a model term
@@ -65,6 +88,10 @@
 #'   validated against the term's actual role (a mismatch is an error), which is a
 #'   convenient guard when a name could be ambiguous.
 #' @param prob Central credible-interval mass (default 0.95).
+#' @param add_mu Logical (default `FALSE`). If `TRUE`, the model intercept `mu` is
+#'   added to every draw, shifting the solutions onto the overall-mean scale
+#'   (e.g. `BLUP + mu`). Most useful for random BLUPs; the addition is done
+#'   per posterior draw so the credible intervals account for uncertainty in `mu`.
 #' @return A data frame with `effect` (level / coefficient name), `solution`
 #'   (posterior mean), `sd`, `lower`, `upper`. Random-term rows are ordered by
 #'   decreasing `solution`; fixed-term rows keep design order. The pooled draws
@@ -72,12 +99,13 @@
 #'   resolved role as attribute `"type"`.
 #' @examples
 #' \donttest{
-#' solution(fit, term = "gen", type = "random")   # random BLUPs (no G matrix needed)
-#' solution(fit, term = "env", type = "fixed")    # fixed-effect estimates
+#' solution(fit, term = "gen", type = "random")               # random BLUPs (no G matrix)
+#' solution(fit, term = "gen", type = "random", add_mu = TRUE) # BLUP + mu
+#' solution(fit, term = "env", type = "fixed")                 # fixed-effect estimates
 #' }
 #' @seealso [gebv()] for genomic breeding values from a `vm()` term.
 #' @export
-solution <- function(fit, term = NULL, type = NULL, prob = 0.95) {
+solution <- function(fit, term = NULL, type = NULL, prob = 0.95, add_mu = FALSE) {
   stopifnot(inherits(fit, "breedRB_fit"))
   if (isTRUE(fit$response$multitrait)) {
     stop("solution() currently supports single-trait fits.", call. = FALSE)
@@ -103,8 +131,15 @@ solution <- function(fit, term = NULL, type = NULL, prob = 0.95) {
     }
   }
 
-  draws <- if (identical(role, "random")) .solution_random(fit, key, meta)
-           else                          .solution_fixed(fit, key, meta)
+  draws_list <- if (identical(role, "random")) .solution_random(fit, key, meta)
+                else                          .solution_fixed(fit, key, meta)
+
+  if (isTRUE(add_mu)) {
+    mu_list    <- .solution_mu(fit, vapply(draws_list, nrow, integer(1)))
+    draws_list <- Map(function(d, mu) d + mu, draws_list, mu_list)  # mu added per draw, per column
+  }
+
+  draws <- do.call(rbind, draws_list)
 
   a <- (1 - prob) / 2
   out <- data.frame(
