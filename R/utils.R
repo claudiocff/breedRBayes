@@ -42,6 +42,10 @@ legendre_basis <- function(x, order, orthonormal = FALSE) {
   if (diff(rng) > 0) 2 * (x - rng[1]) / diff(rng) - 1 else rep(0, length(x))
 }
 
+#' Null-coalescing helper: `a %||% b` returns `a` unless it is `NULL`
+#' @keywords internal
+`%||%` <- function(a, b) if (is.null(a)) b else a
+
 #' Build a factor incidence matrix with clean level names
 #'
 #' @param f A vector coercible to factor.

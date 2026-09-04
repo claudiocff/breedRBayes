@@ -82,26 +82,29 @@
   contrib <- matrix(0, n, S)
   for (k in keys) {
     if (is_genomic[[k]]) {
-      contrib <- contrib + .genomic_obs_contrib(fit, k)
+      contrib <- contrib + .genomic_obs_contrib(fit, k)              # via sign-safe solution()
       next
     }
-    Xk <- built$ETA[[k]]$X
     isFixed <- identical(fit$meta[[k]]$model, "FIXED")
-    Blist <- lapply(paths, function(prefix) {
-      if (isFixed) {
-        B <- as.matrix(utils::read.table(paste0(prefix, "ETA_", k, "_b.dat"),
-                                         header = TRUE))
-        if (nrow(B) > nburn) B <- B[(nburn + 1L):nrow(B), , drop = FALSE]
-        B
-      } else {
-        BGLR::readBinMat(paste0(prefix, "ETA_", k, "_b.bin"))       # [S_c x p]
+    # A per-degree-split random regression is several BGLR blocks; sum them.
+    for (ek in (fit$meta[[k]]$eta_keys %||% k)) {
+      Xk <- built$ETA[[ek]]$X
+      Blist <- lapply(paths, function(prefix) {
+        if (isFixed) {
+          B <- as.matrix(utils::read.table(paste0(prefix, "ETA_", ek, "_b.dat"),
+                                           header = TRUE))
+          if (nrow(B) > nburn) B <- B[(nburn + 1L):nrow(B), , drop = FALSE]
+          B
+        } else {
+          BGLR::readBinMat(paste0(prefix, "ETA_", ek, "_b.bin"))     # [S_c x p]
+        }
+      })
+      Bpool <- do.call(rbind, Blist)                                 # [S x p]
+      if (nrow(Bpool) != S) {
+        stop("Draw count mismatch reconstructing term '", ek, "'.", call. = FALSE)
       }
-    })
-    Bpool <- do.call(rbind, Blist)                                   # [S x p]
-    if (nrow(Bpool) != S) {
-      stop("Draw count mismatch reconstructing term '", k, "'.", call. = FALSE)
+      contrib <- contrib + tcrossprod(Xk, Bpool)                     # X %*% t(B) = [n x S]
     }
-    contrib <- contrib + tcrossprod(Xk, Bpool)                       # X %*% t(B) = [n x S]
   }
 
   yhat <- sweep(contrib, 2L, mu, "+")                                # add mu per draw

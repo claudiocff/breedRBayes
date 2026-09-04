@@ -2,11 +2,31 @@
 % Please edit documentation in R/build_eta.R
 \name{.term_eta}
 \alias{.term_eta}
-\title{Build one ETA entry (design + BGLR model) for a whole term}
+\title{Build the ETA block(s) (design + BGLR model) for a whole term}
 \usage{
-.term_eta(term, data, relmat, exp_var = NA_real_)
+.term_eta(term, data, relmat, exp_var = NA_real_, split_rr = TRUE)
+}
+\arguments{
+\item{split_rr}{Logical; split random \code{leg()} interactions of order >= 2 into
+per-degree blocks. \code{FALSE} reproduces the single-block behaviour (used for
+multi-trait fits).}
+}
+\value{
+A list with \code{meta} (one logical-term meta record, carrying
+\code{coef_names} and, for a split term, \code{rr_split}/\code{rr_order}/\code{block_coef_names})
+and \code{blocks} — a list of \verb{\{suffix, degree, eta\}} BGLR blocks.
 }
 \description{
-Build one ETA entry (design + BGLR model) for a whole term
+Most terms produce a single BGLR block. A \strong{random regression} — a random
+term carrying a \code{leg()} basis of order \eqn{q \ge 2} (e.g. \code{gen:leg(x, 2)}) —
+is instead split into one block \strong{per Legendre degree}: \verb{grouping x deg1},
+\verb{grouping x deg2}, ... Each block is a separate \code{BRR} term, so \pkg{BGLR}
+estimates its \strong{own} variance component. This is the natural diagonal random
+regression (co)variance structure — a single shared component across degrees
+(the old single-block build) forces the slope and higher-order coefficients to
+the same variance, which is a misspecification. (The between-degree covariances
+still require a multi-trait formulation and are not estimated here.) Fixed
+\code{leg()} terms and order-1 random regressions are left as a single block
+(identical to the unsplit build).
 }
 \keyword{internal}

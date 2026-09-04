@@ -2,11 +2,12 @@
 % Please edit documentation in R/posterior.R
 \name{.random_keys}
 \alias{.random_keys}
-\title{Names of the random (BRR) terms in a fit, matching their on-disk file keys}
+\title{Names of the random (BRR) \emph{logical terms} in a fit (meta keys)}
 \usage{
 .random_keys(fit)
 }
 \description{
-Names of the random (BRR) terms in a fit, matching their on-disk file keys
+A split random-regression term counts once here (its logical key); use
+\code{\link[=.varB_keys]{.varB_keys()}} for the per-block on-disk variance-file keys.
 }
 \keyword{internal}

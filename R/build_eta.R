@@ -146,26 +146,78 @@
   )
 }
 
-#' Build one ETA entry (design + BGLR model) for a whole term
+#' Build the ETA block(s) (design + BGLR model) for a whole term
+#'
+#' Most terms produce a single BGLR block. A **random regression** — a random
+#' term carrying a `leg()` basis of order \eqn{q \ge 2} (e.g. `gen:leg(x, 2)`) —
+#' is instead split into one block **per Legendre degree**: `grouping x deg1`,
+#' `grouping x deg2`, ... Each block is a separate `BRR` term, so \pkg{BGLR}
+#' estimates its **own** variance component. This is the natural diagonal random
+#' regression (co)variance structure — a single shared component across degrees
+#' (the old single-block build) forces the slope and higher-order coefficients to
+#' the same variance, which is a misspecification. (The between-degree covariances
+#' still require a multi-trait formulation and are not estimated here.) Fixed
+#' `leg()` terms and order-1 random regressions are left as a single block
+#' (identical to the unsplit build).
+#'
+#' @param split_rr Logical; split random `leg()` interactions of order >= 2 into
+#'   per-degree blocks. `FALSE` reproduces the single-block behaviour (used for
+#'   multi-trait fits).
+#' @return A list with `meta` (one logical-term meta record, carrying
+#'   `coef_names` and, for a split term, `rr_split`/`rr_order`/`block_coef_names`)
+#'   and `blocks` — a list of `{suffix, degree, eta}` BGLR blocks.
 #' @keywords internal
-.term_eta <- function(term, data, relmat, exp_var = NA_real_) {
+.term_eta <- function(term, data, relmat, exp_var = NA_real_, split_rr = TRUE) {
   comp_designs <- lapply(term$components, .component_design,
                          data = data, relmat = relmat, role = term$role,
                          exp_var = exp_var, solo = length(term$components) == 1L)
-  X <- comp_designs[[1]]$X
-  if (length(comp_designs) > 1L) {
-    for (i in 2:length(comp_designs)) X <- .khatri_rao_rows(X, comp_designs[[i]]$X)
-  }
   model <- if (identical(term$role, "fixed")) "FIXED" else "BRR"
-  entry <- list(X = X, model = model)
-  if (model == "BRR") entry$saveEffects <- TRUE
-  # Factor-analytic genetic covariance (multi-trait only)
   fa_comp <- Filter(function(cd) identical(cd$meta$kind, "fa"), comp_designs)
-  if (length(fa_comp)) entry$Cov <- list(type = "FA", nF = fa_comp[[1]]$meta$nfac)
-  list(eta = entry,
-       meta = list(label = term$label, role = term$role, model = model,
-                   coef_names = colnames(X),
-                   components = lapply(comp_designs, `[[`, "meta")))
+
+  base_meta <- list(label = term$label, role = term$role, model = model,
+                    components = lapply(comp_designs, `[[`, "meta"))
+
+  leg_pos <- which(vapply(comp_designs,
+                          function(cd) identical(cd$meta$kind, "leg"), logical(1)))
+  q <- if (length(leg_pos) == 1L) comp_designs[[leg_pos]]$meta$order else 0L
+  do_split <- isTRUE(split_rr) && identical(model, "BRR") &&
+              length(leg_pos) == 1L && q >= 2L && !length(fa_comp)
+
+  if (!do_split) {
+    # single block: Khatri-Rao product of all components (original behaviour)
+    X <- comp_designs[[1]]$X
+    if (length(comp_designs) > 1L) {
+      for (i in 2:length(comp_designs)) X <- .khatri_rao_rows(X, comp_designs[[i]]$X)
+    }
+    entry <- list(X = X, model = model)
+    if (model == "BRR") entry$saveEffects <- TRUE
+    if (length(fa_comp)) entry$Cov <- list(type = "FA", nF = fa_comp[[1]]$meta$nfac)
+    base_meta$coef_names <- colnames(X)
+    return(list(meta = base_meta,
+                blocks = list(list(suffix = "", degree = NA_integer_, eta = entry))))
+  }
+
+  # split by Legendre degree: P = Khatri-Rao of the non-leg components (the
+  # grouping design, e.g. the genomic PC block or a factor incidence); each
+  # degree j then gets its own block  P (x) B[, j]  with its own variance.
+  legB   <- comp_designs[[leg_pos]]$X                     # [n x q], colnames deg1..degq
+  others <- comp_designs[-leg_pos]
+  P <- if (length(others)) {
+    Po <- others[[1]]$X
+    if (length(others) > 1L) for (i in 2:length(others)) Po <- .khatri_rao_rows(Po, others[[i]]$X)
+    Po
+  } else NULL
+  blocks <- lapply(seq_len(q), function(j) {
+    Bj <- legB[, j, drop = FALSE]
+    Xj <- if (is.null(P)) Bj else .khatri_rao_rows(P, Bj)
+    list(suffix = paste0("deg", j), degree = j,
+         eta = list(X = Xj, model = "BRR", saveEffects = TRUE))
+  })
+  base_meta$coef_names       <- unlist(lapply(blocks, function(b) colnames(b$eta$X)))
+  base_meta$block_coef_names <- lapply(blocks, function(b) colnames(b$eta$X))
+  base_meta$rr_split <- TRUE
+  base_meta$rr_order <- q
+  list(meta = base_meta, blocks = blocks)
 }
 
 #' Drop rows whose `vm()` factor levels are absent from the relationship matrix
@@ -209,13 +261,30 @@
 #' @keywords internal
 build_eta <- function(parsed, data, relmat = list(), exp_var = NA_real_) {
   all_terms <- c(parsed$fixed, parsed$random)
+  split_rr  <- !isTRUE(parsed$response$multitrait)     # per-degree split is single-trait only
   built <- lapply(all_terms, .term_eta, data = data, relmat = relmat,
-                  exp_var = exp_var)
+                  exp_var = exp_var, split_rr = split_rr)
 
-  keys <- make.unique(gsub("[^A-Za-z0-9]", "_", vapply(built, function(b) b$meta$label,
-                                                       character(1))))
-  ETA  <- stats::setNames(lapply(built, `[[`, "eta"),  keys)
-  meta <- stats::setNames(lapply(built, `[[`, "meta"), keys)
+  # One base key per logical term; a split random-regression term expands into
+  # several BGLR ETA entries (<key>_deg1, <key>_deg2, ...), recorded in the term
+  # meta as `eta_keys` so downstream readers can find every block's files.
+  base_keys <- make.unique(gsub("[^A-Za-z0-9]", "_",
+                                vapply(built, function(b) b$meta$label, character(1))))
+  ETA <- list(); meta <- list()
+  for (i in seq_along(built)) {
+    bk     <- base_keys[i]
+    blocks <- built[[i]]$blocks
+    m      <- built[[i]]$meta
+    if (length(blocks) == 1L && identical(blocks[[1]]$suffix, "")) {
+      ETA[[bk]]  <- blocks[[1]]$eta
+      m$eta_keys <- bk
+    } else {
+      bkeys <- paste0(bk, "_", vapply(blocks, `[[`, character(1), "suffix"))
+      for (j in seq_along(blocks)) ETA[[bkeys[j]]] <- blocks[[j]]$eta
+      m$eta_keys <- bkeys
+    }
+    meta[[bk]] <- m
+  }
 
   group <- NULL
   if (isTRUE(parsed$residual$hetero)) {

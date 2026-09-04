@@ -120,12 +120,17 @@ heritability <- function(fit, genetic = NULL, denominator = NULL, prob = 0.95) {
   vc <- .read_varchains(fit)
   pooled <- do.call(rbind, vc)
 
+  # Expand each logical term key to its variance-file column(s): a split
+  # random-regression term contributes one variance component per degree.
+  expand <- function(ks) unlist(lapply(ks, function(k) fit$meta[[k]]$eta_keys %||% k))
+
   rand_cols <- setdiff(colnames(pooled), "varE")
   dkeys <- if (is.null(denominator)) rand_cols else
-    vapply(denominator, .resolve_term, character(1), fit = fit)
+    expand(vapply(denominator, .resolve_term, character(1), fit = fit))
+  gcols <- expand(gkeys)
 
-  num   <- rowSums(pooled[, gkeys, drop = FALSE])
-  denom <- rowSums(pooled[, union(dkeys, gkeys), drop = FALSE]) + pooled[, "varE"]
+  num   <- rowSums(pooled[, gcols, drop = FALSE])
+  denom <- rowSums(pooled[, union(dkeys, gcols), drop = FALSE]) + pooled[, "varE"]
   h2    <- num / denom
 
   structure(list(summary = cbind(data.frame(quantity = "h2"), .post_summary(h2, prob)),

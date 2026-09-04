@@ -8,7 +8,7 @@
 }
 \value{
 A list (one element per chain) of matrices \verb{[nSamples x nVC]} whose
-columns are the random-term variances plus \code{varE}.
+columns are the random-term variances (one per BGLR ETA block) plus \code{varE}.
 }
 \description{
 Read the per-chain variance-component traces from BGLR output

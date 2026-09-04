@@ -2,19 +2,33 @@
 # Posterior extraction: read BGLR's on-disk MCMC output into coda objects.
 # ---------------------------------------------------------------------------
 
-#' Names of the random (BRR) terms in a fit, matching their on-disk file keys
+#' Names of the random (BRR) *logical terms* in a fit (meta keys)
+#'
+#' A split random-regression term counts once here (its logical key); use
+#' [.varB_keys()] for the per-block on-disk variance-file keys.
 #' @keywords internal
 .random_keys <- function(fit) {
   names(fit$meta)[vapply(fit$meta, function(m) identical(m$model, "BRR"), logical(1))]
 }
 
+#' On-disk variance-file keys of the random terms (one per BGLR ETA block)
+#'
+#' Expands each logical random term to its `eta_keys`, so a per-degree-split
+#' random regression contributes one key per Legendre degree (each with its own
+#' `varB` trace). Non-split terms map to themselves.
+#' @keywords internal
+.varB_keys <- function(fit) {
+  unlist(lapply(.random_keys(fit), function(k) fit$meta[[k]]$eta_keys %||% k),
+         use.names = FALSE)
+}
+
 #' Read the per-chain variance-component traces from BGLR output
 #'
 #' @return A list (one element per chain) of matrices `[nSamples x nVC]` whose
-#'   columns are the random-term variances plus `varE`.
+#'   columns are the random-term variances (one per BGLR ETA block) plus `varE`.
 #' @keywords internal
 .read_varchains <- function(fit) {
-  keys <- .random_keys(fit)
+  keys <- .varB_keys(fit)
   lapply(fit$paths, function(prefix) {
     cols <- lapply(keys, function(k) scan(paste0(prefix, "ETA_", k, "_varB.dat"),
                                           quiet = TRUE))

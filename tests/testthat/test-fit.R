@@ -367,6 +367,65 @@ test_that("solution()/solve_SNP() give per-genotype and per-marker intercept + s
   }
 })
 
+test_that("an order>=2 random regression splits into one variance component per Legendre degree", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+  set.seed(21); n_gen <- 40; n_mrk <- 250; n_env <- 10
+  M <- matrix(rbinom(n_gen * n_mrk, 2, 0.3), n_gen, n_mrk)
+  rownames(M) <- paste0("g", seq_len(n_gen)); colnames(M) <- paste0("m", seq_len(n_mrk))
+  Ms  <- scale(M)
+  u0  <- as.numeric(Ms %*% rnorm(n_mrk))          # intercept
+  u1  <- as.numeric(Ms %*% rnorm(n_mrk)) * 1.0    # linear (larger variance)
+  u2  <- as.numeric(Ms %*% rnorm(n_mrk)) * 0.4    # quadratic (smaller variance)
+  names(u0) <- names(u1) <- names(u2) <- rownames(M)
+  gg <- rep(rownames(M), each = n_env)
+  xx <- rep(seq(-1, 1, length.out = n_env), n_gen)
+  Bo <- legendre_basis(.scale_unit(xx, range(xx)), order = 2, orthonormal = TRUE)
+  y  <- u0[gg] + u1[gg] * Bo[, 2] + u2[gg] * Bo[, 3] + rnorm(n_gen * n_env, 0, 0.5)
+  dat <- data.frame(gen = gg, x = xx, y = as.numeric(y))
+
+  td <- tempfile(); dir.create(td)
+  fit <- bbglr(y ~ 1 + leg(x, 2), random = ~ mrk(gen, M) + mrk(gen, M):leg(x, 2),
+               data = dat, relmat = list(M = M),
+               nIter = 4000, burnIn = 1500, thin = 2, nChains = 1,
+               verbose = FALSE, saveAt = td)
+
+  key <- .resolve_term(fit, "mrk(gen, M):leg(x, 2)")
+  meta <- fit$meta[[key]]
+  # the RR term is now two BGLR blocks, one per degree, each with its own varB
+  expect_true(isTRUE(meta$rr_split))
+  expect_equal(length(meta$eta_keys), 2L)
+  expect_match(meta$eta_keys, "deg[12]$", all = TRUE)
+
+  vc <- varcomp(fit)
+  # two independent variance components exist and are estimated separately
+  vB <- vc$mean[match(meta$eta_keys, vc$term)]
+  expect_equal(length(vB), 2L)
+  expect_true(all(is.finite(vB)))
+  expect_true(vB[1] != vB[2])                     # genuinely distinct, not one shared component
+  expect_gt(vB[1], vB[2])                          # linear variance > quadratic (as simulated)
+
+  # solution() reassembles the split blocks into the per-genotype deg1/deg2 layout
+  s  <- solution(fit, term = key, type = "random")
+  D  <- attr(s, "draws")
+  expect_equal(ncol(D), 2L * n_gen)
+  expect_true(all(grepl(":deg[12]$", colnames(D))))
+  expect_setequal(unique(sub(".*:", "", colnames(D))), c("deg1", "deg2"))
+
+  # per-coefficient heritability returns intercept + one h2 per degree
+  h2 <- heritability(fit, genetic = key)
+  expect_equal(nrow(h2$summary), 3L)
+
+  # an order-1 RR is NOT split (identical to the single-block build)
+  fit1 <- bbglr(y ~ 1 + leg(x, 1), random = ~ mrk(gen, M) + mrk(gen, M):leg(x, 1),
+                data = dat, relmat = list(M = M),
+                nIter = 2000, burnIn = 800, thin = 2, nChains = 1,
+                verbose = FALSE, saveAt = tempfile())
+  m1 <- fit1$meta[[.resolve_term(fit1, "mrk(gen, M):leg(x, 1)")]]
+  expect_false(isTRUE(m1$rr_split))
+  expect_equal(length(m1$eta_keys), 1L)
+})
+
 test_that("a solo fixed factor uses cell-means coding (every level shown); interactions keep contrasts", {
   skip_on_cran()
   skip_if_not_installed("BGLR")

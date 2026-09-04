@@ -52,8 +52,29 @@
   single_g <- length(comps) == 1L && is_geno(comps[[1]])
   has_geno <- any(vapply(comps, is_geno, logical(1)))
   rr       <- .geno_leg_parts(meta)                                # non-NULL for a genomic RR term
+  split    <- isTRUE(meta$rr_split)                                # per-degree split blocks
+  eks      <- meta$eta_keys %||% key
 
   lapply(fit$paths, function(prefix) {
+    if (split) {
+      # Per-degree blocks: each Legendre degree is a separate BGLR term. Read its
+      # own draws and (for a genomic grouping) back-map to per-genotype values.
+      q <- meta$rr_order
+      blocks <- lapply(seq_len(q), function(j) {
+        bj <- BGLR::readBinMat(paste0(prefix, "ETA_", eks[j], "_b.bin"))  # [nSamples x p_j]
+        if (!is.null(rr)) {
+          bmap <- rr$gc$bmap; ids <- rownames(bmap)
+          U <- bj %*% t(bmap)                                            # basis coeff -> per-genotype
+          colnames(U) <- .rr_effect_names(ids, q, j)
+          U
+        } else {
+          colnames(bj) <- meta$block_coef_names[[j]]                     # "level:degj"
+          bj
+        }
+      })
+      return(do.call(cbind, blocks))
+    }
+
     b <- BGLR::readBinMat(paste0(prefix, "ETA_", key, "_b.bin"))   # [nSamples x p]
     if (single_g) {
       bmap <- comps[[1]]$bmap                                      # PC (GBLUP) or markers (RRBLUP)
@@ -61,9 +82,7 @@
       colnames(out) <- rownames(bmap)
       out
     } else if (!is.null(rr)) {
-      # Genomic random regression: split the interaction by leg() degree and map
-      # each degree's basis coefficients to per-genotype coefficients (same PC
-      # back-map as the main effect), so this term returns per-genotype slopes.
+      # Genomic order-1 random regression (single block): back-map the slope.
       bmap <- rr$gc$bmap; ng <- ncol(bmap); q <- rr$q; ids <- rownames(bmap)
       blocks <- lapply(seq_len(q), function(j) {
         bj <- b[, .rr_degree_cols(rr$gpos, rr$lpos, ng, q, j), drop = FALSE]
@@ -97,23 +116,35 @@
 #' @keywords internal
 .random_prior_var <- function(fit, key, meta) {
   vc      <- do.call(rbind, .read_varchains(fit))
-  varB    <- mean(vc[, key])                                    # posterior-mean variance component
+  varB_of <- function(k) mean(vc[, k])                          # posterior-mean variance component
   comps   <- meta$components
   is_geno <- function(c) c$kind %in% c("vm", "mrk")
   rr      <- .geno_leg_parts(meta)
+  eks     <- meta$eta_keys %||% key
   if (length(comps) == 1L && is_geno(comps[[1]])) {
     bmap  <- comps[[1]]$bmap                                     # PC / marker map, rows = genotypes
     gdiag <- rowSums(bmap^2)                                     # G_ii under the fitted (low-rank) basis
-    stats::setNames(gdiag * varB, rownames(bmap))
+    stats::setNames(gdiag * varB_of(eks[1]), rownames(bmap))
   } else if (!is.null(rr)) {
-    # Genomic random regression: Var(u_{g,j}) = G_ii * varB for every degree j
-    # (one shared interaction variance component), repeated across degrees.
+    # Genomic random regression: Var(u_{g,j}) = G_ii * varB_j. With per-degree
+    # split blocks each degree has its own variance component (eks[j]); an order-1
+    # RR is a single block (eks[1]).
     ids   <- rownames(rr$gc$bmap); q <- rr$q
-    gdiag <- rowSums(rr$gc$bmap^2) * varB
-    nm    <- unlist(lapply(seq_len(q), function(j) .rr_effect_names(ids, q, j)))
-    stats::setNames(rep(gdiag, times = q), nm)
+    gdiag <- rowSums(rr$gc$bmap^2)
+    nm <- character(0); v <- numeric(0)
+    for (j in seq_len(q)) {
+      kj <- if (isTRUE(meta$rr_split)) eks[j] else eks[1]
+      v  <- c(v, gdiag * varB_of(kj)); nm <- c(nm, .rr_effect_names(ids, q, j))
+    }
+    stats::setNames(v, nm)
+  } else if (isTRUE(meta$rr_split)) {
+    # Plain-factor random regression (D = I): each degree its own variance.
+    bcn <- meta$block_coef_names
+    v <- unlist(lapply(seq_along(bcn),
+                       function(j) rep(varB_of(eks[j]), length(bcn[[j]]))))
+    stats::setNames(v, unlist(bcn))
   } else {
-    stats::setNames(rep(varB, length(meta$coef_names)), meta$coef_names)
+    stats::setNames(rep(varB_of(eks[1]), length(meta$coef_names)), meta$coef_names)
   }
 }
 
@@ -436,11 +467,21 @@ gebv <- function(fit, term = NULL, prob = 0.95) {
            "random-regression SNP effects from this GBLUP fit.", call. = FALSE)
     }
   }
-  per <- lapply(fit$paths, function(prefix)
-    BGLR::readBinMat(paste0(prefix, "ETA_", key, "_b.bin")))
-  b <- do.call(rbind, per)                             # [nDraws x (ng * q)]
+  split <- isTRUE(meta$rr_split)
+  eks   <- meta$eta_keys %||% key
+  # Per-degree draws: separate blocks when split, else slice the single block.
+  per_by_deg <- if (split) {
+    lapply(seq_len(q), function(j) do.call(rbind, lapply(fit$paths, function(prefix)
+      BGLR::readBinMat(paste0(prefix, "ETA_", eks[j], "_b.bin")))))
+  } else {
+    b <- do.call(rbind, lapply(fit$paths, function(prefix)
+      BGLR::readBinMat(paste0(prefix, "ETA_", key, "_b.bin"))))   # [nDraws x (ng * q)]
+    lapply(seq_len(q), function(j) b[, .rr_degree_cols(rr$gpos, rr$lpos, ng, q, j), drop = FALSE])
+  }
+  n_per_chain <- vapply(fit$paths, function(prefix)
+    nrow(BGLR::readBinMat(paste0(prefix, "ETA_", eks[1], "_b.bin"))), integer(1))
   blocks <- lapply(seq_len(q), function(j) {
-    bj <- b[, .rr_degree_cols(rr$gpos, rr$lpos, ng, q, j), drop = FALSE]
+    bj <- per_by_deg[[j]]
     d  <- if (identical(method, "RRBLUP")) {
       out <- bj / sqrt(gc$c_scale); colnames(out) <- gc$markers; out
     } else {
@@ -451,7 +492,7 @@ gebv <- function(fit, term = NULL, prob = 0.95) {
     d
   })
   draws <- do.call(cbind, blocks)
-  attr(draws, "n_per_chain") <- vapply(per, nrow, integer(1))
+  attr(draws, "n_per_chain") <- n_per_chain
   draws
 }
 
