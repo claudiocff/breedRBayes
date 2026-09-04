@@ -104,6 +104,38 @@ test_that("anova() returns a coherent comparison object", {
   expect_no_error(print(res))
 })
 
+test_that("WAIC/LOO work with heterogeneous residuals and reconstruct exactly", {
+  skip_on_cran()
+  skip_if_not_installed("BGLR")
+
+  set.seed(5)
+  n_gen <- 40L; n_env <- 3L; p <- 120L
+  M <- matrix(stats::rbinom(n_gen * p, 2, 0.3), n_gen, p)
+  rownames(M) <- paste0("g", seq_len(n_gen))
+  g   <- as.numeric(scale(M) %*% stats::rnorm(p)); g <- 2 * g / stats::sd(g)
+  ids <- rep(rownames(M), n_env * 2L)
+  env <- factor(rep(seq_len(n_env), each = n_gen * 2L))
+  esd <- c(0.7, 1.5, 3.0)[as.integer(env)]                 # heteroscedastic error
+  y   <- g[match(ids, rownames(M))] + stats::rnorm(length(ids), 0, esd)
+  dat <- data.frame(gen = ids, env = env, y = y)
+  ctrl <- list(nIter = 2500, burnIn = 1000, thin = 2, nChains = 1, verbose = FALSE)
+
+  homo <- do.call(bbglr, c(list(y ~ 1 + env, random = ~ mrk(gen, M), data = dat,
+                                relmat = list(M = M), saveAt = tempfile()), ctrl))
+  het  <- do.call(bbglr, c(list(y ~ 1 + env, random = ~ mrk(gen, M),
+                                residual = ~ dsum(~ units | env), data = dat,
+                                relmat = list(M = M), saveAt = tempfile()), ctrl))
+
+  # pointwise log-lik must be produced (not error out) for the hetero fit
+  ll <- breedRBayes:::.pointwise_loglik(het)
+  expect_equal(ncol(ll), sum(is.finite(dat$y)))
+
+  res <- anova(homo, het)
+  expect_s3_class(res, "breedRB_anova")
+  expect_true(all(is.finite(res$table$WAIC)))          # hetero WAIC now computed
+  expect_true(grepl("het by env", res$table$terms[2], fixed = TRUE))
+})
+
 test_that("anova() needs at least two fits and rejects multi-trait", {
   skip_on_cran()
   fake <- structure(list(), class = "breedRB_fit")

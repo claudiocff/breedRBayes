@@ -27,7 +27,11 @@
 #' stored on the fit. Draws are pooled across chains in `fit$paths` order,
 #' matching how [solution()] pools, so all pieces align draw-by-draw.
 #'
-#' @param fit A single-trait `breedRB_fit` with a homogeneous residual.
+#' Heterogeneous residuals (`dsum(~units | g)`) are supported: each observation
+#' is scored against its own residual-variance group's per-draw variance.
+#'
+#' @param fit A single-trait `breedRB_fit` (homogeneous or heterogeneous
+#'   residual).
 #' @return A numeric matrix `[nDraws x nObs]` of pointwise log-likelihoods, with
 #'   attributes `"chain_id"` (chain of each draw row), `"S_per_chain"` and
 #'   `"obs_index"` (which rows of `fit$data` the columns correspond to).
@@ -36,10 +40,7 @@
   if (isTRUE(fit$response$multitrait)) {
     stop("WAIC/LOO currently support single-trait fits.", call. = FALSE)
   }
-  if (!is.null(fit$group)) {
-    stop("WAIC/LOO currently support homogeneous residuals (no heterogeneous ",
-         "residual groups).", call. = FALSE)
-  }
+  hetero <- !is.null(fit$group)                    # dsum(~units | g): per-group varE
 
   y  <- fit$data[[fit$response$traits]]
   ok <- is.finite(y)
@@ -59,19 +60,22 @@
   }, logical(1))
 
   # --- per-draw intercept and residual variance, pooled in fit$paths order ----
-  S_c <- integer(C); mu <- numeric(0); varE <- numeric(0)
+  # varE.dat holds one column per residual group (a single column when the
+  # residual is homogeneous); keep it as a matrix so hetero fits are handled too.
+  S_c <- integer(C); mu <- numeric(0); vE_list <- vector("list", C)
   for (i in seq_len(C)) {
-    mu_all <- scan(paste0(paths[i], "mu.dat"),   quiet = TRUE)
-    vE_all <- scan(paste0(paths[i], "varE.dat"), quiet = TRUE)
+    mu_all <- scan(paste0(paths[i], "mu.dat"), quiet = TRUE)
+    vE_all <- as.matrix(utils::read.table(paste0(paths[i], "varE.dat")))  # [rows x G]
     s <- length(mu_all) - nburn
     if (s <= 0) stop("No post-burn-in draws found for chain ", i, ".", call. = FALSE)
     S_c[i] <- s
-    mu   <- c(mu,   utils::tail(mu_all, s))
-    varE <- c(varE, utils::tail(vE_all, s))
+    mu <- c(mu, utils::tail(mu_all, s))
+    vE_list[[i]] <- vE_all[(nrow(vE_all) - s + 1L):nrow(vE_all), , drop = FALSE]
   }
   if (length(unique(S_c)) != 1L) {
     stop("Chains have unequal numbers of retained draws; cannot pool.", call. = FALSE)
   }
+  varE <- do.call(rbind, vE_list)                  # [S x G]  (G = 1 if homogeneous)
   S <- sum(S_c); n <- nrow(fit$data)
 
   # --- sum every term's per-observation contribution [n x S] ------------------
@@ -105,9 +109,15 @@
   # --- Gaussian pointwise log-likelihood on the observed rows -----------------
   yo <- y[ok]; YH <- yhat[ok, , drop = FALSE]; n_ok <- sum(ok)
   resid <- YH - yo                                                   # (i,s) - yo_i (column recycle)
-  ll <- -0.5 * log(2 * pi) -
-        matrix(0.5 * log(varE), n_ok, S, byrow = TRUE) -
-        sweep(resid^2, 2L, 2 * varE, "/")                            # [n_ok x S]
+  # Per-observation residual-variance trace [n_ok x S]: each observed row uses
+  # its residual group's varE column (all rows share column 1 when homogeneous).
+  if (hetero) {
+    grp_ok   <- fit$group[which(ok)]                                 # group index per obs row
+    varE_obs <- t(varE[, grp_ok, drop = FALSE])                      # [n_ok x S]
+  } else {
+    varE_obs <- matrix(varE[, 1L], n_ok, S, byrow = TRUE)            # [n_ok x S]
+  }
+  ll  <- -0.5 * log(2 * pi) - 0.5 * log(varE_obs) - resid^2 / (2 * varE_obs)
   out <- t(ll)                                                       # [S x n_ok]
   attr(out, "chain_id")    <- rep(seq_len(C), times = S_c)
   attr(out, "S_per_chain") <- S_c[1]
@@ -259,8 +269,13 @@ anova.breedRB_fit <- function(object, ..., loo = TRUE) {
   k <- length(fits)
   model <- paste0("model", seq_len(k))
   terms_lab <- vapply(fits, function(f) {
-    r <- f$call$random
-    if (is.null(r)) "~1" else paste(deparse(r), collapse = "")
+    r   <- f$call$random
+    lab <- if (is.null(r)) "~1" else paste(deparse(r), collapse = "")
+    # tag the residual structure so hetero-vs-homo comparisons are distinguishable
+    if (isTRUE(f$parsed$residual$hetero)) {
+      lab <- paste0(lab, "  [R: het by ", f$parsed$residual$group, "]")
+    }
+    lab
   }, character(1))
 
   dic <- vapply(fits, function(f) mean(vapply(f$chains, function(c) c$fit$DIC, numeric(1))), numeric(1))
@@ -277,12 +292,15 @@ anova.breedRB_fit <- function(object, ..., loo = TRUE) {
   getc <- function(nm) vapply(crit, function(x) if (is.null(x)) NA_real_ else x[[nm]], numeric(1))
   n    <- vapply(fits, function(f) sum(is.finite(.observed(f))), integer(1))
   waic <- getc("waic"); looic <- getc("looic")
+  # gap to the best model; all-NA columns (e.g. WAIC/LOO not computed) stay NA
+  # instead of tripping min(na.rm=TRUE) on an empty set.
+  dbest <- function(z) if (all(is.na(z))) z else z - min(z, na.rm = TRUE)
 
   tab <- data.frame(
     model = model, terms = terms_lab, n = n,
-    pD = round(pD, 2), DIC = round(dic, 1), dDIC = round(dic - min(dic), 1),
-    WAIC = round(waic, 1), dWAIC = round(waic - min(waic, na.rm = TRUE), 1),
-    LOOIC = round(looic, 1), dLOOIC = round(looic - min(looic, na.rm = TRUE), 1),
+    pD = round(pD, 2), DIC = round(dic, 1), dDIC = round(dbest(dic), 1),
+    WAIC = round(waic, 1), dWAIC = round(dbest(waic), 1),
+    LOOIC = round(looic, 1), dLOOIC = round(dbest(looic), 1),
     max_pareto_k = round(getc("max_pareto_k"), 2),
     row.names = NULL, stringsAsFactors = FALSE, check.names = FALSE)
 

@@ -7,7 +7,8 @@
 .pointwise_loglik(fit)
 }
 \arguments{
-\item{fit}{A single-trait \code{breedRB_fit} with a homogeneous residual.}
+\item{fit}{A single-trait \code{breedRB_fit} (homogeneous or heterogeneous
+residual).}
 }
 \value{
 A numeric matrix \verb{[nDraws x nObs]} of pointwise log-likelihoods, with
@@ -29,5 +30,8 @@ default \code{RSpectra} truncation, not sign-reproducible — so their per-obser
 contribution is taken from \code{\link[=solution]{solution()}}, which back-maps through the rotation
 stored on the fit. Draws are pooled across chains in \code{fit$paths} order,
 matching how \code{\link[=solution]{solution()}} pools, so all pieces align draw-by-draw.
+
+Heterogeneous residuals (\code{dsum(~units | g)}) are supported: each observation
+is scored against its own residual-variance group's per-draw variance.
 }
 \keyword{internal}
