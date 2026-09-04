@@ -27,6 +27,7 @@ Suggests:
     SpATS,
     EnvRtype,
     RSpectra,
+    loo,
     parallel,
     testthat (>= 3.0.0),
     knitr,

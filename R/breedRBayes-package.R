@@ -17,7 +17,7 @@
 "_PACKAGE"
 
 ## usethis namespace: start
-#' @importFrom stats terms as.formula model.matrix sd median quantile var mad
+#' @importFrom stats terms as.formula model.matrix sd median quantile var mad pchisq
 #'   reformulate prcomp
 #' @importFrom utils read.table
 ## usethis namespace: end
