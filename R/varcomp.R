@@ -19,22 +19,26 @@
 #'
 #' Returns the posterior distribution and summaries of every random-term variance
 #' and the residual variance, pooling all chains. For a **random-regression**
-#' model the full across-genotype coefficient (co)variance matrix \eqn{K} is
-#' appended: a `var(...)` row for each reaction-norm coefficient (the intercept
-#' and every Legendre degree — so the per-degree variances are visible even
-#' though \pkg{BGLR} fits a single shared component for the whole interaction),
-#' and a `cov(...)` row for each coefficient pair. These are the realised
-#' coefficient (co)variances estimated from the posterior draws (see
-#' [rr_gradient()]), reported even though the intercept and slope terms are
-#' fitted with independent priors.
+#' model the per-coefficient variances already appear as first-class variance
+#' components — with the per-degree split each reaction-norm coefficient (the
+#' intercept and every Legendre degree) is fitted as its own \pkg{BGLR} kernel
+#' with its own variance component (e.g. `Entry`, `Entry_leg_gradient__3__deg1`,
+#' ...). Only the **off-diagonal** entries of the across-genotype coefficient
+#' (co)variance matrix \eqn{K} are appended after `varE`: a `cov(...)` row for
+#' each coefficient pair (intercept--slope and slope--slope). These are the
+#' realised coefficient covariances estimated from the posterior draws (see
+#' [rr_gradient()]), reported even though the coefficient terms are fitted with
+#' independent priors. The variance diagonal is not duplicated as `var(...)`
+#' rows; the full \eqn{K} for the across-gradient genetic-correlation surface is
+#' assembled by [rr_gradient()].
 #'
 #' @param fit A `breedRB_fit`.
 #' @param prob Central credible-interval mass (default 0.95).
 #' @param draws Logical; if `TRUE` also return the pooled posterior draws matrix.
 #' @return A data frame of per-component summaries (`term`, `mean`, `median`,
 #'   `sd`, `lower`, `upper`) — the random-term variance components, `varE`, and,
-#'   for a random regression, the reaction-norm coefficient `var(...)` and
-#'   `cov(...)` rows (the entries of \eqn{K}) — with the pooled variance draws
+#'   for a random regression, the reaction-norm coefficient `cov(...)` rows (the
+#'   off-diagonal entries of \eqn{K}) — with the pooled variance draws
 #'   attached as attribute `"draws"` when `draws = TRUE` (the draws matrix covers
 #'   the BGLR variance components only).
 #' @examples
@@ -49,7 +53,7 @@ varcomp <- function(fit, prob = 0.95, draws = FALSE) {
     cbind(data.frame(term = nm), .post_summary(pooled[, nm], prob))
   }))
   rownames(out) <- NULL
-  # Reaction-norm intercept-slope (co)variance(s), if any (appended after varE).
+  # Reaction-norm coefficient covariances (off-diagonal of K), if any (after varE).
   cov_rows <- .rr_cov_summaries(fit, prob)
   if (!is.null(cov_rows)) {
     out <- rbind(out, cov_rows)

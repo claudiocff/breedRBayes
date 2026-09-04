@@ -16,22 +16,26 @@ varcomp(fit, prob = 0.95, draws = FALSE)
 \value{
 A data frame of per-component summaries (\code{term}, \code{mean}, \code{median},
 \code{sd}, \code{lower}, \code{upper}) — the random-term variance components, \code{varE}, and,
-for a random regression, the reaction-norm coefficient \code{var(...)} and
-\code{cov(...)} rows (the entries of \eqn{K}) — with the pooled variance draws
+for a random regression, the reaction-norm coefficient \code{cov(...)} rows (the
+off-diagonal entries of \eqn{K}) — with the pooled variance draws
 attached as attribute \code{"draws"} when \code{draws = TRUE} (the draws matrix covers
 the BGLR variance components only).
 }
 \description{
 Returns the posterior distribution and summaries of every random-term variance
 and the residual variance, pooling all chains. For a \strong{random-regression}
-model the full across-genotype coefficient (co)variance matrix \eqn{K} is
-appended: a \code{var(...)} row for each reaction-norm coefficient (the intercept
-and every Legendre degree — so the per-degree variances are visible even
-though \pkg{BGLR} fits a single shared component for the whole interaction),
-and a \code{cov(...)} row for each coefficient pair. These are the realised
-coefficient (co)variances estimated from the posterior draws (see
-\code{\link[=rr_gradient]{rr_gradient()}}), reported even though the intercept and slope terms are
-fitted with independent priors.
+model the per-coefficient variances already appear as first-class variance
+components — with the per-degree split each reaction-norm coefficient (the
+intercept and every Legendre degree) is fitted as its own \pkg{BGLR} kernel
+with its own variance component (e.g. \code{Entry}, \code{Entry_leg_gradient__3__deg1},
+...). Only the \strong{off-diagonal} entries of the across-genotype coefficient
+(co)variance matrix \eqn{K} are appended after \code{varE}: a \code{cov(...)} row for
+each coefficient pair (intercept--slope and slope--slope). These are the
+realised coefficient covariances estimated from the posterior draws (see
+\code{\link[=rr_gradient]{rr_gradient()}}), reported even though the coefficient terms are fitted with
+independent priors. The variance diagonal is not duplicated as \code{var(...)}
+rows; the full \eqn{K} for the across-gradient genetic-correlation surface is
+assembled by \code{\link[=rr_gradient]{rr_gradient()}}.
 }
 \examples{
 \donttest{ varcomp(fit) }

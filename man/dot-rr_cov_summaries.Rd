@@ -2,27 +2,35 @@
 % Please edit documentation in R/rr_gradient.R
 \name{.rr_cov_summaries}
 \alias{.rr_cov_summaries}
-\title{Posterior summaries of the reaction-norm coefficient (co)variances}
+\title{Posterior summaries of the reaction-norm coefficient covariances}
 \usage{
 .rr_cov_summaries(fit, prob = 0.95)
 }
 \value{
 A data frame with the same columns as \code{\link[=varcomp]{varcomp()}}
-(\code{term}, \code{mean}, \code{median}, \code{sd}, \code{lower}, \code{upper}) — the \code{var(...)} rows
-first, then the \code{cov(...)} rows — or \code{NULL} if the model has no random
-regression.
+(\code{term}, \code{mean}, \code{median}, \code{sd}, \code{lower}, \code{upper}) — the \code{cov(...)} rows —
+or \code{NULL} if the model has no random regression (or no coefficient pairs).
 }
 \description{
 For every random-regression term in the fit (a grouping x \code{leg()} interaction
 with a matching intercept term), computes the posterior distribution of the
-entries of the across-genotype coefficient (co)variance matrix \eqn{K}: the
-per-coefficient \strong{variances} \code{var(...)} (intercept and each Legendre degree —
-the diagonal) and the intercept--slope / slope--slope \strong{covariances}
-\code{cov(...)} (the off-diagonal). Each entry is computed per MCMC draw as \code{cov()}
-of the per-genotype coefficients in that draw (the same realised (co)variance
-used by \code{\link[=rr_gradient]{rr_gradient()}}) and then summarised. This exposes the individual
-per-degree variances even though \pkg{BGLR} fits a \strong{single shared} variance
-component for the whole \code{leg()} interaction term, and gives a genuine
-intercept--slope covariance even though the terms have independent priors.
+\strong{off-diagonal} entries of the across-genotype coefficient (co)variance
+matrix \eqn{K}: the intercept--slope / slope--slope \strong{covariances} \code{cov(...)}.
+Each covariance is computed per MCMC draw as \code{cov()} of the per-genotype
+coefficients in that draw (the same realised covariance used by
+\code{\link[=rr_gradient]{rr_gradient()}}) and then summarised, giving a genuine intercept--slope
+covariance even though the coefficient terms are fitted with independent
+priors.
+}
+\details{
+The per-coefficient \strong{variances} (the diagonal of \eqn{K}) are deliberately
+\strong{not} returned: with the per-degree variance split each reaction-norm
+coefficient (the intercept and every Legendre degree) is fitted as its own
+\pkg{BGLR} kernel with its own variance component, so those variances already
+appear as first-class rows in \code{\link[=varcomp]{varcomp()}} (e.g. \code{Entry},
+\code{Entry_leg_gradient__3__deg1}, ...). Appending a realised \code{var(...)} re-estimate
+would only duplicate them. The full \eqn{K} (diagonal + off-diagonal) needed
+for the across-gradient genetic-correlation surface is still assembled
+internally by \code{\link[=rr_gradient]{rr_gradient()}} from the same coefficient draws.
 }
 \keyword{internal}

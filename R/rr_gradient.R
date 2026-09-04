@@ -73,23 +73,31 @@ utils::globalVariables(c("x1", "x2", "gcor", "h2", "lower", "upper",
        genomic = rr$genomic, A = A[, ids, drop = FALSE], B = B)
 }
 
-#' Posterior summaries of the reaction-norm coefficient (co)variances
+#' Posterior summaries of the reaction-norm coefficient covariances
 #'
 #' For every random-regression term in the fit (a grouping x `leg()` interaction
 #' with a matching intercept term), computes the posterior distribution of the
-#' entries of the across-genotype coefficient (co)variance matrix \eqn{K}: the
-#' per-coefficient **variances** `var(...)` (intercept and each Legendre degree —
-#' the diagonal) and the intercept--slope / slope--slope **covariances**
-#' `cov(...)` (the off-diagonal). Each entry is computed per MCMC draw as `cov()`
-#' of the per-genotype coefficients in that draw (the same realised (co)variance
-#' used by [rr_gradient()]) and then summarised. This exposes the individual
-#' per-degree variances even though \pkg{BGLR} fits a **single shared** variance
-#' component for the whole `leg()` interaction term, and gives a genuine
-#' intercept--slope covariance even though the terms have independent priors.
+#' **off-diagonal** entries of the across-genotype coefficient (co)variance
+#' matrix \eqn{K}: the intercept--slope / slope--slope **covariances** `cov(...)`.
+#' Each covariance is computed per MCMC draw as `cov()` of the per-genotype
+#' coefficients in that draw (the same realised covariance used by
+#' [rr_gradient()]) and then summarised, giving a genuine intercept--slope
+#' covariance even though the coefficient terms are fitted with independent
+#' priors.
+#'
+#' The per-coefficient **variances** (the diagonal of \eqn{K}) are deliberately
+#' **not** returned: with the per-degree variance split each reaction-norm
+#' coefficient (the intercept and every Legendre degree) is fitted as its own
+#' \pkg{BGLR} kernel with its own variance component, so those variances already
+#' appear as first-class rows in [varcomp()] (e.g. `Entry`,
+#' `Entry_leg_gradient__3__deg1`, ...). Appending a realised `var(...)` re-estimate
+#' would only duplicate them. The full \eqn{K} (diagonal + off-diagonal) needed
+#' for the across-gradient genetic-correlation surface is still assembled
+#' internally by [rr_gradient()] from the same coefficient draws.
+#'
 #' @return A data frame with the same columns as [varcomp()]
-#'   (`term`, `mean`, `median`, `sd`, `lower`, `upper`) — the `var(...)` rows
-#'   first, then the `cov(...)` rows — or `NULL` if the model has no random
-#'   regression.
+#'   (`term`, `mean`, `median`, `sd`, `lower`, `upper`) — the `cov(...)` rows —
+#'   or `NULL` if the model has no random regression (or no coefficient pairs).
 #' @keywords internal
 .rr_cov_summaries <- function(fit, prob = 0.95) {
   rows <- list()
@@ -105,18 +113,12 @@ utils::globalVariables(c("x1", "x2", "gcor", "h2", "lower", "upper",
                   if (q == 1L) fit$meta[[key]]$label
                   else paste0(fit$meta[[key]]$label, ":deg", seq_len(q)))
     pairs  <- if (p1 >= 2L) utils::combn(p1, 2L) else matrix(integer(0), 2L, 0L)
-    diag_d <- matrix(0, nD, p1)                       # per-draw variances (diagonal of K)
-    off_d  <- matrix(0, nD, ncol(pairs))              # per-draw covariances (off-diagonal)
+    if (!ncol(pairs)) next
+    off_d  <- matrix(0, nD, ncol(pairs))              # per-draw covariances (off-diagonal of K)
     for (t in seq_len(nD)) {
       Ct <- cbind(cd$A[t, ], vapply(cd$B, function(m) m[t, ], numeric(G)))
       Kt <- stats::cov(Ct)
-      diag_d[t, ] <- diag(Kt)
-      if (ncol(pairs)) off_d[t, ] <- Kt[cbind(pairs[1L, ], pairs[2L, ])]
-    }
-    for (i in seq_len(p1)) {
-      rows[[length(rows) + 1L]] <-
-        cbind(data.frame(term = paste0("var(", coef_lab[i], ")")),
-              .post_summary(diag_d[, i], prob))
+      off_d[t, ] <- Kt[cbind(pairs[1L, ], pairs[2L, ])]
     }
     for (p in seq_len(ncol(pairs))) {
       nm <- paste0("cov(", coef_lab[pairs[1L, p]], ", ", coef_lab[pairs[2L, p]], ")")

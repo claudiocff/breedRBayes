@@ -603,16 +603,18 @@ test_that("model_fit() breaks out reliability per Legendre degree for a q>1 RR",
   degrows <- mf$reliability[grepl(":deg[0-9]+$", mf$reliability$term), ]
   expect_true(all(degrows$n_effects == n_gen))
 
-  # varcomp() exposes the per-coefficient variances (diagonal of K) as var() rows
-  # -- not visible from the single shared BGLR interaction component -- plus the
-  # covariance off-diagonal, and they equal the K reported by rr_gradient()
+  # With the per-degree split each coefficient variance is its own BGLR kernel
+  # component, so varcomp() no longer duplicates them as var() rows -- it appends
+  # only the coefficient covariance off-diagonal. The full K (diagonal included)
+  # is still assembled by rr_gradient().
   vc <- varcomp(fit)
-  expect_true(all(c("var(gen)", "var(gen:leg(x, 2):deg1)",
-                    "var(gen:leg(x, 2):deg2)") %in% vc$term))
+  expect_false(any(grepl("^var\\(", vc$term)))
   expect_true("cov(gen:leg(x, 2):deg1, gen:leg(x, 2):deg2)" %in% vc$term)
   g <- rr_gradient(fit, term = "gen:leg(x, 2)", n_grid = 5L, plot = FALSE)
-  vrows <- vc$mean[grepl("^var\\(", vc$term)]
-  expect_equal(vrows, diag(g$K), tolerance = 1e-6)
+  expect_equal(dim(g$K), c(3L, 3L))
+  # the appended cov() rows equal the off-diagonal of the K reported by rr_gradient()
+  crow <- vc$mean[vc$term == "cov(gen:leg(x, 2):deg1, gen:leg(x, 2):deg2)"]
+  expect_equal(crow, g$K[2L, 3L], tolerance = 1e-6)
 
   # term resolution is whitespace-insensitive: the deparsed label carries a
   # space ("gen:leg(x, 2)") but users routinely type it without ("gen:leg(x,2)")
